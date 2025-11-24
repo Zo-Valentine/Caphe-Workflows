@@ -52,12 +52,14 @@ RUN mkdir -p /app/database /app/workflows /app/static /app/src && \
 # Security: Switch to non-root user
 USER appuser
 
-# Healthcheck
+# Healthcheck - Railway uses its own health checks at /health endpoint
+# So we can remove this or keep it for local Docker usage
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/api/stats')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT:-8000}/health').read()" || exit 1
 
 # Expose port (informational)
 EXPOSE 8000
 
 # Security: Run with minimal privileges
-CMD ["python", "-u", "run.py", "--host", "0.0.0.0", "--port", "8000"]
+# Use shell form to allow $PORT environment variable expansion for Railway
+CMD python -u run.py --host 0.0.0.0 --port ${PORT:-8000}
