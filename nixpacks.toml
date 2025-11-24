@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["python39", "pip"]
+nixPkgs = ["python311", "pip"]
 
 [phases.install]
 cmds = ["pip install --no-cache-dir -r requirements.txt"]
@@ -8,4 +8,4 @@ cmds = ["pip install --no-cache-dir -r requirements.txt"]
 cmds = ["python -m compileall ."]
 
 [start]
-cmd = "python run.py --port $PORT --host 0.0.0.0"
+cmd = "./start.sh"
