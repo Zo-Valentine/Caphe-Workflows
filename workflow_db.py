@@ -50,7 +50,11 @@ class WorkflowDatabase:
                 updated_at TEXT,
                 file_hash TEXT,
                 file_size INTEGER,
-                analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                tier TEXT DEFAULT 'pro',
+                tier_complexity TEXT DEFAULT 'intermediate',
+                is_lead_magnet BOOLEAN DEFAULT 0,
+                requires_login BOOLEAN DEFAULT 1
             )
         """)
 
