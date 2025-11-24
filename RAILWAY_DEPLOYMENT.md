@@ -142,39 +142,41 @@ Build configuration for Nixpacks builder.
 
 ### Essential Variables
 
-| Variable | Purpose | Example |
-|----------|---------|---------|
-| `PORT` | Server port (auto-set by Railway) | `8000` |
-| `HOST` | Bind address | `0.0.0.0` |
+| Variable | Purpose                           | Example   |
+| -------- | --------------------------------- | --------- |
+| `PORT`   | Server port (auto-set by Railway) | `8000`    |
+| `HOST`   | Bind address                      | `0.0.0.0` |
 
 ### Security Variables (Recommended)
 
-| Variable | Purpose | Generation |
-|----------|---------|------------|
+| Variable         | Purpose           | Generation             |
+| ---------------- | ----------------- | ---------------------- |
 | `JWT_SECRET_KEY` | JWT token signing | `openssl rand -hex 32` |
-| `ADMIN_TOKEN` | API admin access | `openssl rand -hex 32` |
-| `ADMIN_PASSWORD` | Admin password | Strong random password |
+| `ADMIN_TOKEN`    | API admin access  | `openssl rand -hex 32` |
+| `ADMIN_PASSWORD` | Admin password    | Strong random password |
 
 ### Optional Variables
 
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `ALLOWED_ORIGINS` | CORS origins | None |
-| `RATE_LIMIT_REQUESTS` | Requests per window | `60` |
-| `RATE_LIMIT_WINDOW` | Window in seconds | `60` |
-| `WORKFLOW_DB_PATH` | Database location | `database/workflows.db` |
+| Variable              | Purpose             | Default                 |
+| --------------------- | ------------------- | ----------------------- |
+| `ALLOWED_ORIGINS`     | CORS origins        | None                    |
+| `RATE_LIMIT_REQUESTS` | Requests per window | `60`                    |
+| `RATE_LIMIT_WINDOW`   | Window in seconds   | `60`                    |
+| `WORKFLOW_DB_PATH`    | Database location   | `database/workflows.db` |
 
 ## Monitoring and Logs
 
 ### View Logs
 
 Railway Dashboard:
+
 1. Click on your service
 2. Go to **"Deployments"** tab
 3. Click on active deployment
 4. View real-time logs
 
 CLI:
+
 ```bash
 railway logs
 ```
@@ -188,6 +190,7 @@ curl https://your-app.up.railway.app/health
 ```
 
 Response:
+
 ```json
 {
   "status": "healthy",
@@ -208,6 +211,7 @@ Response:
 ### Horizontal Scaling (Instances)
 
 Railway Pro plan:
+
 1. Go to **"Settings"** tab
 2. Enable **"Horizontal Scaling"**
 3. Set number of replicas
@@ -237,6 +241,7 @@ Railway provides persistent volumes. Data in `/app/database/` is preserved acros
 ### Backup Database
 
 Using Railway CLI:
+
 ```bash
 # Connect to service
 railway run bash
@@ -258,6 +263,7 @@ railway run python run.py --reindex
 ```
 
 Or via API (if admin endpoints are enabled):
+
 ```bash
 curl -X POST https://your-app.up.railway.app/api/reindex \
   -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
@@ -270,6 +276,7 @@ curl -X POST https://your-app.up.railway.app/api/reindex \
 **Issue**: Dependencies not installing
 
 **Solution**:
+
 ```bash
 # Verify requirements.txt is in root
 # Check Python version compatibility
@@ -281,6 +288,7 @@ curl -X POST https://your-app.up.railway.app/api/reindex \
 **Issue**: Server fails to start
 
 **Solution**:
+
 1. Check environment variables (especially `HOST=0.0.0.0`)
 2. Review startup logs
 3. Verify port binding: `--port $PORT`
@@ -291,6 +299,7 @@ curl -X POST https://your-app.up.railway.app/api/reindex \
 **Issue**: Workflows not appearing
 
 **Solution**:
+
 ```bash
 # Trigger reindexing
 railway run python run.py --reindex
@@ -304,6 +313,7 @@ railway restart
 **Issue**: API responses are slow
 
 **Solution**:
+
 1. Increase memory/CPU in Railway settings
 2. Enable caching in application
 3. Check database queries in logs
@@ -314,6 +324,7 @@ railway restart
 ### Free Tier Limits
 
 Railway Free Tier:
+
 - 500 hours per month
 - $5 credit
 - Great for testing and small projects
@@ -348,6 +359,7 @@ If you need a more robust database:
 Railway automatically deploys on every push to main/master branch.
 
 Customize in `railway.json`:
+
 ```json
 {
   "deploy": {
@@ -370,11 +382,13 @@ Customize in `railway.json`:
 ### Recommended Railway Plan Settings
 
 **Starter/Hobby Projects**:
+
 - Memory: 512MB - 1GB
 - CPU: Shared
 - Instances: 1
 
 **Production**:
+
 - Memory: 2GB - 4GB
 - CPU: 2-4 vCPU
 - Instances: 2-3 (for high availability)

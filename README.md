@@ -63,17 +63,17 @@ docker run -p 8000:8000 \
 
 Configure the application using these environment variables:
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `PORT` | Server port | `8000` | No |
-| `HOST` | Server host | `127.0.0.1` | No |
-| `JWT_SECRET_KEY` | Secret for JWT tokens | - | Production only |
-| `ADMIN_PASSWORD` | Admin password | - | Production only |
-| `ADMIN_TOKEN` | API admin token | - | Production only |
-| `WORKFLOW_DB_PATH` | Database path | `database/workflows.db` | No |
-| `ALLOWED_ORIGINS` | CORS origins (comma-separated) | - | No |
-| `RATE_LIMIT_REQUESTS` | Rate limit requests | `60` | No |
-| `RATE_LIMIT_WINDOW` | Rate limit window (seconds) | `60` | No |
+| Variable              | Description                    | Default                 | Required        |
+| --------------------- | ------------------------------ | ----------------------- | --------------- |
+| `PORT`                | Server port                    | `8000`                  | No              |
+| `HOST`                | Server host                    | `127.0.0.1`             | No              |
+| `JWT_SECRET_KEY`      | Secret for JWT tokens          | -                       | Production only |
+| `ADMIN_PASSWORD`      | Admin password                 | -                       | Production only |
+| `ADMIN_TOKEN`         | API admin token                | -                       | Production only |
+| `WORKFLOW_DB_PATH`    | Database path                  | `database/workflows.db` | No              |
+| `ALLOWED_ORIGINS`     | CORS origins (comma-separated) | -                       | No              |
+| `RATE_LIMIT_REQUESTS` | Rate limit requests            | `60`                    | No              |
+| `RATE_LIMIT_WINDOW`   | Rate limit window (seconds)    | `60`                    | No              |
 
 ### Railway Environment Setup
 
@@ -97,17 +97,21 @@ In your Railway project:
 ### Key Endpoints
 
 #### Health Check
+
 ```
 GET /health
 ```
+
 Returns server health status and database info.
 
 #### Get All Workflows
+
 ```
 GET /api/workflows?page=1&limit=20&category=Slack&tier=free&search=automation
 ```
 
 **Query Parameters:**
+
 - `page` (int): Page number (default: 1)
 - `limit` (int): Results per page (default: 20, max: 100)
 - `category` (string): Filter by category/integration
@@ -115,6 +119,7 @@ GET /api/workflows?page=1&limit=20&category=Slack&tier=free&search=automation
 - `search` (string): Search in workflow names and descriptions
 
 **Response:**
+
 ```json
 {
   "workflows": [...],
@@ -127,27 +132,35 @@ GET /api/workflows?page=1&limit=20&category=Slack&tier=free&search=automation
 ```
 
 #### Get Workflow Details
+
 ```
 GET /api/workflows/{filename}
 ```
+
 Returns complete workflow details including metadata and JSON content.
 
 #### Download Workflow
+
 ```
 GET /api/workflows/{filename}/download
 ```
+
 Downloads the workflow JSON file.
 
 #### Get Categories
+
 ```
 GET /api/categories
 ```
+
 Returns all available workflow categories with counts.
 
 #### Get Statistics
+
 ```
 GET /api/stats
 ```
+
 Returns platform statistics (total workflows, categories, tiers).
 
 ### Interactive API Docs
@@ -265,6 +278,7 @@ python test_workflows.py
 ### Other Platforms
 
 The application is compatible with:
+
 - **Heroku**: Use `Procfile`
 - **Render**: Use `Dockerfile`
 - **Fly.io**: Use `Dockerfile`
@@ -326,6 +340,7 @@ See [LICENSE](LICENSE) for details.
 ### Filtering System
 
 Filter workflows by:
+
 - **Category**: Integration/service name (Slack, Google, etc.)
 - **Tier**: free, premium, enterprise
 - **Search**: Text search in names and descriptions
