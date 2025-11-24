@@ -1,0 +1,322 @@
+{
+  "platform": "Caphè Technologies Workflows",
+  "version": "1.0",
+  "generated_at": "2025-11-20T00:00:00Z",
+  "description": "Business-focused workflow categorization for advanced automation platform",
+  "categories": [
+    {
+      "id": "content-media",
+      "displayName": "Content & Media",
+      "description": "AI-powered content creation, media processing, and asset management workflows",
+      "subcategories": [
+        {
+          "id": "asset-management",
+          "displayName": "Asset Management",
+          "description": "Document storage, knowledge bases, and digital asset organization"
+        },
+        {
+          "id": "content-creation",
+          "displayName": "Content Creation",
+          "description": "AI-powered writing, image generation, and creative automation"
+        },
+        {
+          "id": "media-processing",
+          "displayName": "Media Processing",
+          "description": "Image, video, and audio processing workflows"
+        }
+      ],
+      "integrations": ["OpenAI", "Google Drive", "Notion", "Airtable"],
+      "color": "#ea4b71"
+    },
+    {
+      "id": "customer-service",
+      "displayName": "Customer Service",
+      "description": "Customer support automation, chatbots, and communication workflows",
+      "subcategories": [
+        {
+          "id": "support-workflows",
+          "displayName": "Support Workflows",
+          "description": "Ticket management, email triage, and support automation"
+        },
+        {
+          "id": "chat-automation",
+          "displayName": "Chat Automation",
+          "description": "Chatbots, voice agents, and conversational AI"
+        },
+        {
+          "id": "feedback-management",
+          "displayName": "Feedback Management",
+          "description": "Customer feedback collection and analysis"
+        }
+      ],
+      "integrations": ["Slack", "Discord", "Intercom", "Zendesk"],
+      "color": "#6b73ff"
+    },
+    {
+      "id": "data-analytics",
+      "displayName": "Data & Analytics",
+      "description": "Data processing, analysis, and business intelligence workflows",
+      "subcategories": [
+        {
+          "id": "data-collection",
+          "displayName": "Data Collection",
+          "description": "Web scraping, API integration, and data gathering"
+        },
+        {
+          "id": "business-intelligence",
+          "displayName": "Business Intelligence",
+          "description": "Reporting, dashboards, and data visualization"
+        },
+        {
+          "id": "data-processing",
+          "displayName": "Data Processing",
+          "description": "ETL pipelines, data transformation, and cleaning"
+        }
+      ],
+      "integrations": ["Google Sheets", "Airtable", "PostgreSQL", "MongoDB"],
+      "color": "#00d4aa"
+    },
+    {
+      "id": "ecommerce",
+      "displayName": "E-commerce",
+      "description": "Online store automation, inventory management, and sales workflows",
+      "subcategories": [
+        {
+          "id": "inventory-management",
+          "displayName": "Inventory Management",
+          "description": "Stock tracking, supplier management, and procurement"
+        },
+        {
+          "id": "order-processing",
+          "displayName": "Order Processing",
+          "description": "Order fulfillment, shipping, and customer notifications"
+        },
+        {
+          "id": "product-management",
+          "displayName": "Product Management",
+          "description": "Product catalogs, pricing, and merchandising"
+        }
+      ],
+      "integrations": ["Shopify", "WooCommerce", "Stripe", "PayPal"],
+      "color": "#f59e0b"
+    },
+    {
+      "id": "education",
+      "displayName": "Education",
+      "description": "Learning management, course automation, and educational workflows",
+      "subcategories": [
+        {
+          "id": "course-management",
+          "displayName": "Course Management",
+          "description": "Course creation, student enrollment, and progress tracking"
+        },
+        {
+          "id": "assessment-automation",
+          "displayName": "Assessment Automation",
+          "description": "Automated grading, feedback, and evaluation systems"
+        },
+        {
+          "id": "student-engagement",
+          "displayName": "Student Engagement",
+          "description": "Communication, notifications, and engagement workflows"
+        }
+      ],
+      "integrations": ["Notion", "Google Classroom", "Moodle", "Zoom"],
+      "color": "#8b5cf6"
+    },
+    {
+      "id": "finance-accounting",
+      "displayName": "Finance & Accounting",
+      "description": "Financial management, accounting automation, and expense workflows",
+      "subcategories": [
+        {
+          "id": "expense-management",
+          "displayName": "Expense Management",
+          "description": "Expense tracking, approval workflows, and reimbursements"
+        },
+        {
+          "id": "invoicing-billing",
+          "displayName": "Invoicing & Billing",
+          "description": "Invoice generation, payment processing, and billing automation"
+        },
+        {
+          "id": "financial-reporting",
+          "displayName": "Financial Reporting",
+          "description": "Financial analysis, budgeting, and reporting workflows"
+        }
+      ],
+      "integrations": ["QuickBooks", "Xero", "Stripe", "FreshBooks"],
+      "color": "#ef4444"
+    },
+    {
+      "id": "general-utilities",
+      "displayName": "General Utilities",
+      "description": "Multi-purpose automation, scheduling, and utility workflows",
+      "subcategories": [
+        {
+          "id": "scheduling",
+          "displayName": "Scheduling",
+          "description": "Calendar management, appointment booking, and time automation"
+        },
+        {
+          "id": "notifications",
+          "displayName": "Notifications",
+          "description": "Alert systems, reminders, and communication workflows"
+        },
+        {
+          "id": "file-management",
+          "displayName": "File Management",
+          "description": "File processing, backup, and organization workflows"
+        }
+      ],
+      "integrations": ["Google Calendar", "Calendly", "Zapier", "IFTTT"],
+      "color": "#64748b"
+    },
+    {
+      "id": "healthcare",
+      "displayName": "Healthcare",
+      "description": "Healthcare automation, patient management, and medical workflows",
+      "subcategories": [
+        {
+          "id": "patient-management",
+          "displayName": "Patient Management",
+          "description": "Patient records, appointments, and care coordination"
+        },
+        {
+          "id": "appointment-scheduling",
+          "displayName": "Appointment Scheduling",
+          "description": "Booking systems, reminders, and calendar management"
+        },
+        {
+          "id": "compliance-reporting",
+          "displayName": "Compliance & Reporting",
+          "description": "Regulatory compliance, reporting, and documentation"
+        }
+      ],
+      "integrations": ["Epic", "Cerner", "FHIR APIs", "Telehealth"],
+      "color": "#059669"
+    },
+    {
+      "id": "human-resources",
+      "displayName": "Human Resources",
+      "description": "HR automation, employee management, and recruitment workflows",
+      "subcategories": [
+        {
+          "id": "recruitment",
+          "displayName": "Recruitment",
+          "description": "Job posting, candidate screening, and hiring workflows"
+        },
+        {
+          "id": "employee-onboarding",
+          "displayName": "Employee Onboarding",
+          "description": "New hire processes, training, and integration workflows"
+        },
+        {
+          "id": "performance-management",
+          "displayName": "Performance Management",
+          "description": "Reviews, feedback, and employee development"
+        }
+      ],
+      "integrations": ["BambooHR", "Workday", "LinkedIn", "Indeed"],
+      "color": "#dc2626"
+    },
+    {
+      "id": "it-development",
+      "displayName": "IT & Development",
+      "description": "Software development, IT operations, and technical workflows",
+      "subcategories": [
+        {
+          "id": "ci-cd",
+          "displayName": "CI/CD",
+          "description": "Continuous integration, deployment, and DevOps workflows"
+        },
+        {
+          "id": "monitoring-alerts",
+          "displayName": "Monitoring & Alerts",
+          "description": "System monitoring, error tracking, and incident response"
+        },
+        {
+          "id": "code-management",
+          "displayName": "Code Management",
+          "description": "Code review, repository management, and collaboration"
+        }
+      ],
+      "integrations": ["GitHub", "GitLab", "Jenkins", "Docker"],
+      "color": "#7c3aed"
+    },
+    {
+      "id": "marketing-sales",
+      "displayName": "Marketing & Sales",
+      "description": "Marketing automation, lead generation, and sales workflows",
+      "subcategories": [
+        {
+          "id": "lead-generation",
+          "displayName": "Lead Generation",
+          "description": "Prospect identification, lead scoring, and qualification"
+        },
+        {
+          "id": "campaign-management",
+          "displayName": "Campaign Management",
+          "description": "Email marketing, social media, and advertising campaigns"
+        },
+        {
+          "id": "sales-automation",
+          "displayName": "Sales Automation",
+          "description": "CRM workflows, deal tracking, and sales processes"
+        }
+      ],
+      "integrations": ["HubSpot", "Salesforce", "Mailchimp", "ActiveCampaign"],
+      "color": "#0d9488"
+    },
+    {
+      "id": "operations-logistics",
+      "displayName": "Operations & Logistics",
+      "description": "Supply chain, logistics, and operational workflows",
+      "subcategories": [
+        {
+          "id": "supply-chain",
+          "displayName": "Supply Chain",
+          "description": "Vendor management, procurement, and logistics"
+        },
+        {
+          "id": "project-management",
+          "displayName": "Project Management",
+          "description": "Task tracking, resource allocation, and project workflows"
+        },
+        {
+          "id": "quality-assurance",
+          "displayName": "Quality Assurance",
+          "description": "QA processes, testing workflows, and compliance"
+        }
+      ],
+      "integrations": ["Asana", "Trello", "Monday.com", "Jira"],
+      "color": "#ea580c"
+    }
+  ],
+  "difficulty_levels": [
+    {
+      "id": "beginner",
+      "displayName": "Beginner",
+      "description": "Simple workflows with minimal setup required",
+      "color": "#10b981"
+    },
+    {
+      "id": "intermediate",
+      "displayName": "Intermediate",
+      "description": "Moderate complexity requiring some technical knowledge",
+      "color": "#f59e0b"
+    },
+    {
+      "id": "advanced",
+      "displayName": "Advanced",
+      "description": "Complex workflows requiring significant technical expertise",
+      "color": "#ef4444"
+    },
+    {
+      "id": "expert",
+      "displayName": "Expert",
+      "description": "Highly complex workflows for experienced developers",
+      "color": "#8b5cf6"
+    }
+  ]
+}

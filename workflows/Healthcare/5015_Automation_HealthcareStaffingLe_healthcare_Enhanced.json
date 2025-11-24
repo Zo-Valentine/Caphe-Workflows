@@ -1,0 +1,699 @@
+{
+  "meta": {
+    "instanceId": "workflow-68543",
+    "versionId": "1.0.0",
+    "createdAt": "2025-11-23T04:34:11.509687",
+    "updatedAt": "2025-11-23T04:34:11.509688",
+    "owner": "Caphe Workflows",
+    "license": "MIT",
+    "category": "healthcare",
+    "subcategory": "Compliance",
+    "status": "active",
+    "priority": "medium",
+    "environment": "production",
+    "business_metadata": {
+      "useCase": "Route new nursing candidate leads to the appropriate regional recruiter team (West Coast, East Coast, Midwest, South), then automatically assign to the recruiter with the lowest current workload. Ensures fair distribution, prevents recruiter burnout, and maintains fast response times. Ideal for staffing agencies with distributed recruiting teams.",
+      "difficulty": "intermediate",
+      "estimatedSetupTime": "35-45 minutes",
+      "features": [
+        "Geographic routing by state (4 regions)",
+        "Round-robin assignment by workload",
+        "Real-time workload tracking",
+        "Automatic workload increment",
+        "Email notification to assigned recruiter",
+        "Slack team notification",
+        "Webhook response with assignment details",
+        "Lead ID generation",
+        "Assignment timestamp tracking",
+        "Fallback for unassigned regions"
+      ],
+      "limitations": [
+        "Requires manual recruiter list maintenance",
+        "No specialty-based routing (region only)",
+        "Workload must be manually updated when leads close",
+        "No recruiter availability checking",
+        "Static regional definitions"
+      ],
+      "requirements": [
+        "Google Sheets with 'Incoming_Leads' and 'Recruiter_Workload' sheets",
+        "Webhook endpoint for lead capture",
+        "Email account for notifications",
+        "Slack workspace and channel",
+        "Recruiter email addresses by region"
+      ],
+      "tags": [
+        "lead-routing",
+        "lead-assignment",
+        "round-robin",
+        "workload-balancing",
+        "healthcare-staffing",
+        "recruitment-automation",
+        "regional-routing"
+      ],
+      "integrations": [
+        "Webhook",
+        "Google Sheets",
+        "Email (SMTP)",
+        "Slack"
+      ],
+      "pricing": {
+        "n8n": "Free (self-hosted) or $20+/month (cloud)",
+        "googleSheets": "Free",
+        "email": "Free (Gmail) or $15/month (SendGrid)",
+        "slack": "Free tier available"
+      },
+      "lastUpdated": "2025-11-19"
+    }
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-candidate-lead",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "New Candidate Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        400
+      ],
+      "webhookId": "candidate-routing"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "timestamp",
+              "name": "received_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "lead-id",
+              "name": "lead_id",
+              "value": "={{ $json.email }}-{{ $now.toUnixInteger() }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "enrich-lead-data",
+      "name": "Enrich Lead Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        460,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Incoming_Leads",
+        "columns": {
+          "mappings": [
+            {
+              "column": "lead_id",
+              "value": "={{ $json.lead_id }}"
+            },
+            {
+              "column": "first_name",
+              "value": "={{ $json.first_name }}"
+            },
+            {
+              "column": "last_name",
+              "value": "={{ $json.last_name }}"
+            },
+            {
+              "column": "email",
+              "value": "={{ $json.email }}"
+            },
+            {
+              "column": "phone",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "column": "specialty",
+              "value": "={{ $json.specialty }}"
+            },
+            {
+              "column": "state",
+              "value": "={{ $json.state }}"
+            },
+            {
+              "column": "city",
+              "value": "={{ $json.city }}"
+            },
+            {
+              "column": "received_at",
+              "value": "={{ $json.received_at }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-incoming-lead",
+      "name": "Log Incoming Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "id": "west-region",
+              "leftValue": "={{ $json.state }}",
+              "rightValue": "CA,OR,WA,NV,AZ,HI,AK",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ]
+        }
+      },
+      "id": "route-by-region",
+      "name": "Route by Region",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        900,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "region",
+              "name": "region",
+              "value": "West Coast",
+              "type": "string"
+            },
+            {
+              "id": "recruiter-pool",
+              "name": "available_recruiters",
+              "value": "recruiter1@company.com,recruiter2@company.com,recruiter3@company.com",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "west-coast-region",
+      "name": "West Coast Region",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        1120,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "region",
+              "name": "region",
+              "value": "East Coast",
+              "type": "string"
+            },
+            {
+              "id": "recruiter-pool",
+              "name": "available_recruiters",
+              "value": "recruiter4@company.com,recruiter5@company.com",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "east-coast-region",
+      "name": "East Coast Region",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "region",
+              "name": "region",
+              "value": "Midwest",
+              "type": "string"
+            },
+            {
+              "id": "recruiter-pool",
+              "name": "available_recruiters",
+              "value": "recruiter6@company.com,recruiter7@company.com",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "midwest-region",
+      "name": "Midwest Region",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        1120,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "region",
+              "name": "region",
+              "value": "South",
+              "type": "string"
+            },
+            {
+              "id": "recruiter-pool",
+              "name": "available_recruiters",
+              "value": "recruiter8@company.com,recruiter9@company.com,recruiter10@company.com",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "south-region",
+      "name": "South Region",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        1120,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "region",
+              "name": "region",
+              "value": "Unassigned",
+              "type": "string"
+            },
+            {
+              "id": "recruiter-pool",
+              "name": "available_recruiters",
+              "value": "recruiter-manager@company.com",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "default-region",
+      "name": "Default/Unassigned",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        1120,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "sheetId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "range": "Recruiter_Workload!A:D",
+        "options": {}
+      },
+      "id": "get-recruiter-workload",
+      "name": "Get Recruiter Workload",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Round-robin assignment based on workload\nconst recruiters = $input.first().json.available_recruiters.split(',');\nconst workloadData = $input.all().slice(1); // Skip first item (it's the lead data)\n\n// Find recruiter with lowest workload\nlet assignedRecruiter = recruiters[0];\nlet lowestWorkload = 999999;\n\nfor (const recruiter of recruiters) {\n  const workloadRecord = workloadData.find(w => w.json.recruiter_email === recruiter.trim());\n  const currentWorkload = workloadRecord ? parseInt(workloadRecord.json.active_leads) : 0;\n  \n  if (currentWorkload < lowestWorkload) {\n    lowestWorkload = currentWorkload;\n    assignedRecruiter = recruiter.trim();\n  }\n}\n\n// Get lead data\nconst leadData = $input.first().json;\n\nreturn {\n  ...leadData,\n  assigned_recruiter: assignedRecruiter,\n  recruiter_workload: lowestWorkload,\n  assignment_method: 'lowest_workload',\n  assigned_at: new Date().toISOString()\n};"
+      },
+      "id": "assign-recruiter",
+      "name": "Assign Recruiter (Lowest Workload)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Incoming_Leads",
+        "dataMode": "autoMapInputData",
+        "options": {
+          "lookupColumn": "lead_id",
+          "lookupValue": "={{ $json.lead_id }}"
+        }
+      },
+      "id": "update-lead-assignment",
+      "name": "Update Lead Assignment",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Recruiter_Workload",
+        "dataMode": "autoMapInputData",
+        "columnToMatchOn": "recruiter_email",
+        "valueToMatchOn": "={{ $json.assigned_recruiter }}",
+        "fieldsToUpdate": {
+          "values": [
+            {
+              "column": "active_leads",
+              "value": "={{ $json.recruiter_workload + 1 }}"
+            },
+            {
+              "column": "last_assignment",
+              "value": "={{ $now.toISO() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "increment-workload",
+      "name": "Increment Recruiter Workload",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        2000,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.RECRUITING_EMAIL }}",
+        "toEmail": "={{ $json.assigned_recruiter }}",
+        "subject": "🎯 New {{ $json.specialty }} Lead Assigned: {{ $json.first_name }} {{ $json.last_name }}",
+        "message": "Hi there!\n\nYou've been assigned a new {{ $json.specialty }} candidate lead:\n\n**Candidate Details:**\n- Name: {{ $json.first_name }} {{ $json.last_name }}\n- Specialty: {{ $json.specialty }}\n- Location: {{ $json.city }}, {{ $json.state }}\n- Region: {{ $json.region }}\n- Phone: {{ $json.phone }}\n- Email: {{ $json.email }}\n\n**Assignment Details:**\n- Lead ID: {{ $json.lead_id }}\n- Assigned: {{ $json.assigned_at }}\n- Your Current Workload: {{ $json.recruiter_workload + 1 }} active leads\n\n**Next Steps:**\n1. Review candidate profile in the CRM\n2. Contact within 4 hours (SLA)\n3. Update lead status after initial contact\n\n**Quick Actions:**\n- [View Full Profile](#)\n- [Schedule Call](#)\n- [Send Email Template](#)\n\nGood luck!\n\n---\nRecruiting Operations Team",
+        "options": {}
+      },
+      "id": "notify-recruiter",
+      "name": "Notify Assigned Recruiter",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "={{ $env.SLACK_RECRUITING_CHANNEL }}",
+        "text": "🎯 *New Lead Assigned*\n\n*Candidate:* {{ $json.first_name }} {{ $json.last_name }}\n*Specialty:* {{ $json.specialty }}\n*Location:* {{ $json.city }}, {{ $json.state }}\n*Region:* {{ $json.region }}\n\n*Assigned to:* {{ $json.assigned_recruiter }}\n*Method:* Lowest workload ({{ $json.recruiter_workload }} → {{ $json.recruiter_workload + 1 }} leads)\n\n📧 {{ $json.email }} | 📱 {{ $json.phone }}",
+        "otherOptions": {}
+      },
+      "id": "slack-notification",
+      "name": "Slack Team Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [
+        2220,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"lead_id\": $json.lead_id, \"assigned_to\": $json.assigned_recruiter, \"region\": $json.region, \"message\": \"Lead successfully routed and assigned\" } }}",
+        "options": {}
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2440,
+        400
+      ]
+    },
+    {
+      "id": "error-00000095",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        400
+      ],
+      "parameters": {
+        "message": "Workflow execution error",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "New Candidate Webhook": {
+      "main": [
+        [
+          {
+            "node": "Enrich Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrich Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Log Incoming Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Incoming Lead": {
+      "main": [
+        [
+          {
+            "node": "Route by Region",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Region": {
+      "main": [
+        [
+          {
+            "node": "West Coast Region",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "East Coast Region",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Midwest Region",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "South Region",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Default/Unassigned",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "West Coast Region": {
+      "main": [
+        [
+          {
+            "node": "Get Recruiter Workload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "East Coast Region": {
+      "main": [
+        [
+          {
+            "node": "Get Recruiter Workload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Midwest Region": {
+      "main": [
+        [
+          {
+            "node": "Get Recruiter Workload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "South Region": {
+      "main": [
+        [
+          {
+            "node": "Get Recruiter Workload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default/Unassigned": {
+      "main": [
+        [
+          {
+            "node": "Get Recruiter Workload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recruiter Workload": {
+      "main": [
+        [
+          {
+            "node": "Assign Recruiter (Lowest Workload)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assign Recruiter (Lowest Workload)": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Assignment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead Assignment": {
+      "main": [
+        [
+          {
+            "node": "Increment Recruiter Workload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Recruiter Workload": {
+      "main": [
+        [
+          {
+            "node": "Notify Assigned Recruiter",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Slack Team Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Assigned Recruiter": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Team Notification": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "name": "Healthcare Staffing - Lead Routing & Assignment",
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "lead-routing",
+    "lead-assignment",
+    "round-robin",
+    "workload-balancing",
+    "healthcare-staffing",
+    "recruitment-automation",
+    "regional-routing"
+  ],
+  "active": true,
+  "staticData": {},
+  "pinData": {},
+  "versionId": 1
+}

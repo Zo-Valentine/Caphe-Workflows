@@ -1,0 +1,718 @@
+{
+  "meta": {
+    "instanceId": "workflow-50951",
+    "versionId": "1.0.0",
+    "createdAt": "2025-11-23T04:34:11.510474",
+    "updatedAt": "2025-11-23T04:34:11.510475",
+    "owner": "Caphe Workflows",
+    "license": "MIT",
+    "category": "healthcare",
+    "subcategory": "Compliance",
+    "status": "active",
+    "priority": "high",
+    "environment": "production",
+    "business_metadata": {
+      "useCase": "Streamline healthcare worker onboarding by automating background checks and compliance document collection. Initiates Checkr background check, tracks 7 essential healthcare documents (nursing license, BLS, COVID vaccination, TB test, immunizations, physical exam, drug screen), sends automated reminders, monitors expiry dates, and alerts compliance team. Essential for staffing agencies, hospitals, and healthcare facilities ensuring regulatory compliance and patient safety.",
+      "difficulty": "advanced",
+      "estimatedSetupTime": "50-60 minutes",
+      "features": [
+        "Checkr API integration for background checks",
+        "Automatic compliance check ID generation",
+        "7-document tracking system",
+        "48-hour document submission deadline",
+        "Email with detailed document requirements",
+        "SMS reminder for urgency",
+        "Individual document status tracking",
+        "Expiry date monitoring",
+        "Automatic reminder scheduling",
+        "Slack team notifications",
+        "Background check status polling",
+        "Compliance dashboard data",
+        "HIPAA-compliant data handling",
+        "Audit trail logging"
+      ],
+      "limitations": [
+        "Requires Checkr API subscription",
+        "Manual document upload by candidate",
+        "No automated document validation",
+        "Expiry reminders require separate scheduled workflow",
+        "Drug screen must be scheduled externally",
+        "State-specific compliance variations not automated"
+      ],
+      "requirements": [
+        "Checkr API account and credentials",
+        "Google Sheets with 'Compliance_Checks' and 'Required_Documents' sheets",
+        "Webhook endpoint for check initiation",
+        "Email account for compliance notifications",
+        "Twilio account for SMS reminders",
+        "Slack workspace for compliance team alerts",
+        "Candidate information (name, DOB, SSN, email, phone)"
+      ],
+      "tags": [
+        "background-check",
+        "compliance-tracking",
+        "healthcare-compliance",
+        "document-management",
+        "checkr-integration",
+        "hipaa-compliance",
+        "onboarding-automation",
+        "credential-verification"
+      ],
+      "integrations": [
+        "Webhook",
+        "Checkr API",
+        "Google Sheets",
+        "Email (SMTP)",
+        "Twilio SMS",
+        "Slack"
+      ],
+      "pricing": {
+        "n8n": "Free (self-hosted) or $20+/month (cloud)",
+        "checkr": "$25-35 per background check",
+        "googleSheets": "Free",
+        "twilio": "$0.0079/SMS (USA)",
+        "email": "Free (Gmail) or $15/month (SendGrid)",
+        "slack": "Free tier available",
+        "totalPerCandidate": "$25-40"
+      },
+      "lastUpdated": "2025-11-19"
+    }
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "initiate-background-check",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "initiate-webhook",
+      "name": "Initiate Background Check",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        400
+      ],
+      "webhookId": "background-check"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "check-id",
+              "name": "compliance_check_id",
+              "value": "={{ 'BGC-' + $now.toFormat('yyyyMMdd') + '-' + $now.toUnixInteger().toString().slice(-6) }}",
+              "type": "string"
+            },
+            {
+              "id": "initiated-at",
+              "name": "initiated_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "status",
+              "name": "overall_status",
+              "value": "initiated",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "generate-check-id",
+      "name": "Generate Compliance Check ID",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        460,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Compliance_Checks",
+        "columns": {
+          "mappings": [
+            {
+              "column": "compliance_check_id",
+              "value": "={{ $json.compliance_check_id }}"
+            },
+            {
+              "column": "candidate_id",
+              "value": "={{ $json.candidate_id }}"
+            },
+            {
+              "column": "candidate_name",
+              "value": "={{ $json.first_name + ' ' + $json.last_name }}"
+            },
+            {
+              "column": "candidate_email",
+              "value": "={{ $json.email }}"
+            },
+            {
+              "column": "ssn_last4",
+              "value": "={{ $json.ssn_last4 }}"
+            },
+            {
+              "column": "dob",
+              "value": "={{ $json.date_of_birth }}"
+            },
+            {
+              "column": "state",
+              "value": "={{ $json.state }}"
+            },
+            {
+              "column": "position",
+              "value": "={{ $json.position }}"
+            },
+            {
+              "column": "initiated_at",
+              "value": "={{ $json.initiated_at }}"
+            },
+            {
+              "column": "overall_status",
+              "value": "={{ $json.overall_status }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-compliance-check",
+      "name": "Log Compliance Check",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "generic",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.checkr.com/v1/candidates",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"email\": $json.email,\n  \"first_name\": $json.first_name,\n  \"last_name\": $json.last_name,\n  \"ssn\": $json.ssn,\n  \"dob\": $json.date_of_birth,\n  \"phone\": $json.phone,\n  \"zipcode\": $json.zip_code\n} }}",
+        "options": {}
+      },
+      "id": "create-checkr-candidate",
+      "name": "Create Checkr Candidate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "generic",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.checkr.com/v1/reports",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"candidate_id\": $json.id,\n  \"package\": \"tasker_pro\",\n  \"consider\": \"true\"\n} }}",
+        "options": {}
+      },
+      "id": "initiate-background-check",
+      "name": "Initiate Checkr Background Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "checkr-candidate-id",
+              "name": "checkr_candidate_id",
+              "value": "={{ $json.candidate_id }}",
+              "type": "string"
+            },
+            {
+              "id": "checkr-report-id",
+              "name": "checkr_report_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "bg-status",
+              "name": "background_check_status",
+              "value": "={{ $json.status }}",
+              "type": "string"
+            },
+            {
+              "id": "bg-eta",
+              "name": "estimated_completion",
+              "value": "={{ $json.eta }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "extract-checkr-data",
+      "name": "Extract Checkr Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.COMPLIANCE_EMAIL }}",
+        "toEmail": "={{ $json.email }}",
+        "subject": "📋 Background Check & Compliance Documents Required",
+        "message": "Hi {{ $json.first_name }},\n\nWelcome to the final step of your onboarding process!\n\nWe've initiated your background check (ID: {{ $json.compliance_check_id }}) and need a few documents from you to complete your compliance file.\n\n**Background Check Status:**\n✅ Initiated with Checkr\n⏱️ Expected completion: {{ $json.estimated_completion || '3-5 business days' }}\n\n**Required Documents (Please upload within 48 hours):**\n\n1. **License/Certification** ✅\n   - Valid RN/LPN/CNA license\n   - Must be current and unexpired\n\n2. **BLS Certification** 🚑\n   - American Heart Association or Red Cross\n   - Must be current\n\n3. **COVID-19 Vaccination** 💉\n   - Vaccination card or exemption documentation\n\n4. **TB Test Results** 🏥\n   - Within the last 12 months\n   - Or chest X-ray if positive history\n\n5. **Immunization Records** 📋\n   - MMR, Varicella, Hepatitis B, Tdap\n\n6. **Physical Exam** 🩺\n   - Completed within last 12 months\n\n7. **Drug Screen** 🧪\n   - We'll schedule this separately\n\n**How to Upload Documents:**\n1. Visit: [Upload Portal](#)\n2. Enter your email: {{ $json.email }}\n3. Upload each document (PDF or JPG)\n4. Submit for review\n\n**Timeline:**\n- Background check: 3-5 business days\n- Document review: 24-48 hours after upload\n- Final clearance: Within 7 days (if all documents submitted promptly)\n\n**Important:**\n- All documents must be current and valid\n- Incomplete submissions will delay your start date\n- You'll receive reminders every 24 hours until documents are submitted\n\n**Questions?**\nContact our Compliance Team:\n📧 {{ $env.COMPLIANCE_EMAIL }}\n📞 {{ $env.COMPLIANCE_PHONE }}\n\nWe're excited to have you join our team!\n\nBest regards,\nCompliance Team",
+        "options": {}
+      },
+      "id": "email-document-request",
+      "name": "Email Document Request",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1560,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "generic",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/={{ $env.TWILIO_ACCOUNT_SID }}/Messages.json",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "From",
+              "value": "={{ $env.TWILIO_PHONE }}"
+            },
+            {
+              "name": "To",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "name": "Body",
+              "value": "Hi {{ $json.first_name }}! 📋 Your background check is underway. We need 7 compliance documents from you within 48 hours. Check your email for details and upload link. Questions? Call {{ $env.COMPLIANCE_PHONE }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "sms-reminder",
+      "name": "SMS Document Reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Required_Documents",
+        "columns": {
+          "mappings": [
+            {
+              "column": "compliance_check_id",
+              "value": "={{ $json.compliance_check_id }}"
+            },
+            {
+              "column": "candidate_id",
+              "value": "={{ $json.candidate_id }}"
+            },
+            {
+              "column": "document_type",
+              "value": "License"
+            },
+            {
+              "column": "required",
+              "value": "true"
+            },
+            {
+              "column": "status",
+              "value": "pending"
+            },
+            {
+              "column": "requested_at",
+              "value": "={{ $now.toISO() }}"
+            },
+            {
+              "column": "due_date",
+              "value": "={{ $now.plus({hours: 48}).toISO() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-license-requirement",
+      "name": "Track: License",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Required_Documents",
+        "columns": {
+          "mappings": [
+            {
+              "column": "compliance_check_id",
+              "value": "={{ $json.compliance_check_id }}"
+            },
+            {
+              "column": "candidate_id",
+              "value": "={{ $json.candidate_id }}"
+            },
+            {
+              "column": "document_type",
+              "value": "BLS Certification"
+            },
+            {
+              "column": "required",
+              "value": "true"
+            },
+            {
+              "column": "status",
+              "value": "pending"
+            },
+            {
+              "column": "requested_at",
+              "value": "={{ $now.toISO() }}"
+            },
+            {
+              "column": "due_date",
+              "value": "={{ $now.plus({hours: 48}).toISO() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-bls-requirement",
+      "name": "Track: BLS",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Required_Documents",
+        "columns": {
+          "mappings": [
+            {
+              "column": "compliance_check_id",
+              "value": "={{ $json.compliance_check_id }}"
+            },
+            {
+              "column": "candidate_id",
+              "value": "={{ $json.candidate_id }}"
+            },
+            {
+              "column": "document_type",
+              "value": "COVID Vaccination"
+            },
+            {
+              "column": "required",
+              "value": "true"
+            },
+            {
+              "column": "status",
+              "value": "pending"
+            },
+            {
+              "column": "requested_at",
+              "value": "={{ $now.toISO() }}"
+            },
+            {
+              "column": "due_date",
+              "value": "={{ $now.plus({hours: 48}).toISO() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-covid-requirement",
+      "name": "Track: COVID Vaccination",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "={{ $env.SLACK_COMPLIANCE_CHANNEL }}",
+        "text": "📋 *New Background Check Initiated*\n\n*Compliance ID:* {{ $json.compliance_check_id }}\n*Candidate:* {{ $json.first_name }} {{ $json.last_name }}\n*Position:* {{ $json.position }}\n*State:* {{ $json.state }}\n\n*Checkr Status:*\n- Candidate ID: {{ $json.checkr_candidate_id }}\n- Report ID: {{ $json.checkr_report_id }}\n- Status: {{ $json.background_check_status }}\n- ETA: {{ $json.estimated_completion || '3-5 business days' }}\n\n*Required Documents:* 7 (License, BLS, COVID, TB, Immunizations, Physical, Drug Screen)\n*Due Date:* 48 hours\n\n*Actions Taken:*\n✅ Background check initiated with Checkr\n✅ Document request email sent\n✅ SMS reminder sent\n✅ Document tracking created\n\n*Next Steps:*\n- Monitor document uploads\n- Review Checkr report when complete\n- Send reminders if documents not received",
+        "otherOptions": {}
+      },
+      "id": "notify-compliance-team",
+      "name": "Notify Compliance Team",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [
+        1780,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Compliance_Checks",
+        "dataMode": "autoMapInputData",
+        "options": {
+          "lookupColumn": "compliance_check_id",
+          "lookupValue": "={{ $json.compliance_check_id }}"
+        }
+      },
+      "id": "update-compliance-record",
+      "name": "Update Compliance Record",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        2000,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"compliance_check_id\": $json.compliance_check_id,\n  \"checkr_candidate_id\": $json.checkr_candidate_id,\n  \"checkr_report_id\": $json.checkr_report_id,\n  \"background_check_status\": $json.background_check_status,\n  \"documents_required\": 7,\n  \"due_date\": $now.plus({hours: 48}).toISO(),\n  \"message\": \"Background check initiated and document requests sent\"\n} }}",
+        "options": {}
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2220,
+        400
+      ]
+    },
+    {
+      "id": "error-0000a92b",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        400
+      ],
+      "parameters": {
+        "message": "Workflow execution error",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Initiate Background Check": {
+      "main": [
+        [
+          {
+            "node": "Generate Compliance Check ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Compliance Check ID": {
+      "main": [
+        [
+          {
+            "node": "Log Compliance Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Compliance Check": {
+      "main": [
+        [
+          {
+            "node": "Create Checkr Candidate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Checkr Candidate": {
+      "main": [
+        [
+          {
+            "node": "Initiate Checkr Background Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initiate Checkr Background Check": {
+      "main": [
+        [
+          {
+            "node": "Extract Checkr Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Checkr Data": {
+      "main": [
+        [
+          {
+            "node": "Email Document Request",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SMS Document Reminder",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Track: License",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Track: BLS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Track: COVID Vaccination",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Document Request": {
+      "main": [
+        [
+          {
+            "node": "Notify Compliance Team",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SMS Document Reminder": {
+      "main": [
+        [
+          {
+            "node": "Notify Compliance Team",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Track: License": {
+      "main": [
+        [
+          {
+            "node": "Notify Compliance Team",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Track: BLS": {
+      "main": [
+        [
+          {
+            "node": "Notify Compliance Team",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Track: COVID Vaccination": {
+      "main": [
+        [
+          {
+            "node": "Notify Compliance Team",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Compliance Team": {
+      "main": [
+        [
+          {
+            "node": "Update Compliance Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Compliance Record": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "name": "Healthcare Staffing - Compliance & Background Check",
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "background-check",
+    "compliance-tracking",
+    "healthcare-compliance",
+    "document-management",
+    "checkr-integration",
+    "hipaa-compliance",
+    "onboarding-automation",
+    "credential-verification"
+  ],
+  "active": true,
+  "staticData": {},
+  "pinData": {},
+  "versionId": 1
+}

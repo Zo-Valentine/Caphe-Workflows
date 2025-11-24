@@ -1,0 +1,755 @@
+{
+  "meta": {
+    "instanceId": "workflow-11768",
+    "versionId": "1.0.0",
+    "createdAt": "2025-11-23T04:34:11.511844",
+    "updatedAt": "2025-11-23T04:34:11.511845",
+    "owner": "Caphe Workflows",
+    "license": "MIT",
+    "category": "healthcare",
+    "subcategory": "Compliance",
+    "status": "active",
+    "priority": "medium",
+    "environment": "production",
+    "business_metadata": {
+      "useCase": "Segment a database of nursing candidates into actionable groups for targeted recruitment. Automatically calculates experience level (New Grad, Intermediate, Experienced, Senior), specialty segments (ICU, ER, Med-Surg, Peds, Other), location preferences, shift preferences, pay tiers (Standard, Premium, Executive), and engagement levels (Hot, Warm, Cold). Alerts recruiters via Slack for hot leads requiring immediate action.",
+      "difficulty": "intermediate",
+      "estimatedSetupTime": "25-35 minutes",
+      "features": [
+        "Multi-dimensional segmentation (6 criteria)",
+        "Specialty routing (ICU, ER, Med-Surg, Pediatrics, Other)",
+        "Experience level classification (4 tiers)",
+        "Engagement scoring (Hot/Warm/Cold)",
+        "Pay tier assignment (Standard/Premium/Executive)",
+        "Market rate ranges by specialty",
+        "Recruiting priority levels",
+        "Automated hot lead alerts to Slack",
+        "SLA recommendations per segment",
+        "Recommended actions per engagement level"
+      ],
+      "limitations": [
+        "Requires clean candidate data",
+        "Manual specialty mapping needed",
+        "No machine learning predictions",
+        "Static segmentation rules",
+        "Requires engagement tracking setup"
+      ],
+      "requirements": [
+        "Google Sheets with 'Candidates' sheet",
+        "Slack workspace and channel",
+        "Candidate data: specialty, years_experience, location, shift preference, desired pay, engagement metrics"
+      ],
+      "tags": [
+        "candidate-segmentation",
+        "lead-scoring",
+        "healthcare-staffing",
+        "recruitment-automation",
+        "nurse-recruitment",
+        "data-enrichment",
+        "lead-routing"
+      ],
+      "integrations": [
+        "Google Sheets",
+        "Slack"
+      ],
+      "pricing": {
+        "n8n": "Free (self-hosted) or $20+/month (cloud)",
+        "googleSheets": "Free",
+        "slack": "Free tier available"
+      },
+      "lastUpdated": "2025-11-19"
+    }
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "read",
+        "sheetId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "range": "Candidates!A:M",
+        "options": {}
+      },
+      "id": "get-candidates",
+      "name": "Get All Candidates",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "specialty-segment",
+              "name": "specialty_segment",
+              "value": "={{ $json.specialty }}",
+              "type": "string"
+            },
+            {
+              "id": "experience-level",
+              "name": "experience_level",
+              "value": "={{ $json.years_experience < 2 ? 'New Grad' : ($json.years_experience < 5 ? 'Intermediate' : ($json.years_experience < 10 ? 'Experienced' : 'Senior')) }}",
+              "type": "string"
+            },
+            {
+              "id": "location-preference",
+              "name": "location_segment",
+              "value": "={{ $json.location_state }}",
+              "type": "string"
+            },
+            {
+              "id": "shift-preference",
+              "name": "shift_segment",
+              "value": "={{ $json.shift_preference }}",
+              "type": "string"
+            },
+            {
+              "id": "pay-tier",
+              "name": "pay_tier",
+              "value": "={{ $json.desired_hourly_rate < 35 ? 'Standard' : ($json.desired_hourly_rate < 50 ? 'Premium' : 'Executive') }}",
+              "type": "string"
+            },
+            {
+              "id": "engagement-score",
+              "name": "engagement_level",
+              "value": "={{ ($json.email_opens + $json.clicks + $json.responses) > 5 ? 'Hot' : (($json.email_opens + $json.clicks + $json.responses) > 2 ? 'Warm' : 'Cold') }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "calculate-segments",
+      "name": "Calculate Segments",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        460,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "id": "icu-specialty",
+              "leftValue": "={{ $json.specialty }}",
+              "rightValue": "ICU,Critical Care,CVICU,SICU,MICU,Neuro ICU",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ]
+        }
+      },
+      "id": "segment-by-specialty",
+      "name": "Segment by Specialty",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "segment-tag",
+              "name": "segment_tags",
+              "value": "ICU, Critical Care, High-Acuity",
+              "type": "string"
+            },
+            {
+              "id": "priority",
+              "name": "recruiting_priority",
+              "value": "High",
+              "type": "string"
+            },
+            {
+              "id": "avg-pay",
+              "name": "market_rate_range",
+              "value": "$45-65/hr",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "icu-segment",
+      "name": "ICU Segment",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "segment-tag",
+              "name": "segment_tags",
+              "value": "ER, Emergency, Fast-Paced",
+              "type": "string"
+            },
+            {
+              "id": "priority",
+              "name": "recruiting_priority",
+              "value": "High",
+              "type": "string"
+            },
+            {
+              "id": "avg-pay",
+              "name": "market_rate_range",
+              "value": "$40-60/hr",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "er-segment",
+      "name": "ER Segment",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "segment-tag",
+              "name": "segment_tags",
+              "value": "Med-Surg, General Floor, Patient Care",
+              "type": "string"
+            },
+            {
+              "id": "priority",
+              "name": "recruiting_priority",
+              "value": "Medium",
+              "type": "string"
+            },
+            {
+              "id": "avg-pay",
+              "name": "market_rate_range",
+              "value": "$32-48/hr",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "medsurg-segment",
+      "name": "Med-Surg Segment",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        900,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "segment-tag",
+              "name": "segment_tags",
+              "value": "Pediatrics, Children, Family Care",
+              "type": "string"
+            },
+            {
+              "id": "priority",
+              "name": "recruiting_priority",
+              "value": "Medium",
+              "type": "string"
+            },
+            {
+              "id": "avg-pay",
+              "name": "market_rate_range",
+              "value": "$35-52/hr",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "peds-segment",
+      "name": "Pediatrics Segment",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        900,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "segment-tag",
+              "name": "segment_tags",
+              "value": "Other Specialty",
+              "type": "string"
+            },
+            {
+              "id": "priority",
+              "name": "recruiting_priority",
+              "value": "Medium",
+              "type": "string"
+            },
+            {
+              "id": "avg-pay",
+              "name": "market_rate_range",
+              "value": "$35-55/hr",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "other-segment",
+      "name": "Other Specialties",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        900,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "id": "hot-lead",
+              "leftValue": "={{ $json.engagement_level }}",
+              "rightValue": "Hot",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "segment-by-engagement",
+      "name": "Segment by Engagement",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "action",
+              "name": "recommended_action",
+              "value": "Call immediately, high priority follow-up",
+              "type": "string"
+            },
+            {
+              "id": "sla",
+              "name": "response_sla",
+              "value": "4 hours",
+              "type": "string"
+            },
+            {
+              "id": "notification",
+              "name": "alert_recruiter",
+              "value": "true",
+              "type": "boolean"
+            }
+          ]
+        }
+      },
+      "id": "hot-lead-action",
+      "name": "Hot Lead Actions",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        1340,
+        250
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "action",
+              "name": "recommended_action",
+              "value": "Email nurture, schedule follow-up call",
+              "type": "string"
+            },
+            {
+              "id": "sla",
+              "name": "response_sla",
+              "value": "24 hours",
+              "type": "string"
+            },
+            {
+              "id": "notification",
+              "name": "alert_recruiter",
+              "value": "false",
+              "type": "boolean"
+            }
+          ]
+        }
+      },
+      "id": "warm-lead-action",
+      "name": "Warm Lead Actions",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        1340,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "action",
+              "name": "recommended_action",
+              "value": "Add to drip campaign, re-engage in 30 days",
+              "type": "string"
+            },
+            {
+              "id": "sla",
+              "name": "response_sla",
+              "value": "7 days",
+              "type": "string"
+            },
+            {
+              "id": "notification",
+              "name": "alert_recruiter",
+              "value": "false",
+              "type": "boolean"
+            }
+          ]
+        }
+      },
+      "id": "cold-lead-action",
+      "name": "Cold Lead Actions",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        1340,
+        550
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Candidates",
+        "dataMode": "autoMapInputData",
+        "options": {
+          "lookupColumn": "email",
+          "lookupValue": "={{ $json.email }}"
+        }
+      },
+      "id": "update-segments",
+      "name": "Update Candidate Segments",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "id": "should-alert",
+              "leftValue": "={{ $json.alert_recruiter }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-alert-needed",
+      "name": "Check if Alert Needed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "={{ $env.SLACK_RECRUITING_CHANNEL }}",
+        "text": "🔥 *Hot Lead Alert!*\n\n*Name:* {{ $json.first_name }} {{ $json.last_name }}\n*Specialty:* {{ $json.specialty }} ({{ $json.experience_level }})\n*Location:* {{ $json.location_segment }}\n*Engagement:* {{ $json.engagement_level }}\n*Pay Expectation:* ${{ $json.desired_hourly_rate }}/hr ({{ $json.pay_tier }})\n\n*Action:* {{ $json.recommended_action }}\n*SLA:* {{ $json.response_sla }}\n\n📧 {{ $json.email }} | 📱 {{ $json.phone }}",
+        "otherOptions": {}
+      },
+      "id": "alert-recruiter",
+      "name": "Alert Recruiter on Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        300
+      ]
+    },
+    {
+      "id": "error-00002868",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        400
+      ],
+      "parameters": {
+        "message": "Workflow execution error",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Get All Candidates": {
+      "main": [
+        [
+          {
+            "node": "Calculate Segments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Segments": {
+      "main": [
+        [
+          {
+            "node": "Segment by Specialty",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Segment by Specialty": {
+      "main": [
+        [
+          {
+            "node": "ICU Segment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ER Segment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Med-Surg Segment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pediatrics Segment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Other Specialties",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ICU Segment": {
+      "main": [
+        [
+          {
+            "node": "Segment by Engagement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ER Segment": {
+      "main": [
+        [
+          {
+            "node": "Segment by Engagement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Med-Surg Segment": {
+      "main": [
+        [
+          {
+            "node": "Segment by Engagement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pediatrics Segment": {
+      "main": [
+        [
+          {
+            "node": "Segment by Engagement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Other Specialties": {
+      "main": [
+        [
+          {
+            "node": "Segment by Engagement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Segment by Engagement": {
+      "main": [
+        [
+          {
+            "node": "Hot Lead Actions",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Warm Lead Actions",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cold Lead Actions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hot Lead Actions": {
+      "main": [
+        [
+          {
+            "node": "Update Candidate Segments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Warm Lead Actions": {
+      "main": [
+        [
+          {
+            "node": "Update Candidate Segments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cold Lead Actions": {
+      "main": [
+        [
+          {
+            "node": "Update Candidate Segments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Candidate Segments": {
+      "main": [
+        [
+          {
+            "node": "Check if Alert Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Alert Needed": {
+      "main": [
+        [
+          {
+            "node": "Alert Recruiter on Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "name": "Healthcare Staffing - Candidate Segmentation",
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "candidate-segmentation",
+    "lead-scoring",
+    "healthcare-staffing",
+    "recruitment-automation",
+    "nurse-recruitment",
+    "data-enrichment",
+    "lead-routing"
+  ],
+  "active": true,
+  "staticData": {},
+  "pinData": {},
+  "versionId": 1
+}

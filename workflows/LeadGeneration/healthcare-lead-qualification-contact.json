@@ -1,0 +1,570 @@
+{
+  "name": "Healthcare Lead Qualification & Contact System",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "telegram-bot-trigger",
+      "name": "Telegram Bot Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "healthcare-lqc-trigger",
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract initial contact info from Telegram message\nconst message = $input.item.json.message;\nconst chatId = message.chat.id;\nconst userId = message.from.id;\nconst username = message.from.username || 'Unknown';\nconst text = message.text || '';\n\n// Check if this is a /start command\nconst isStartCommand = text.toLowerCase().includes('/start') || text.toLowerCase().includes('qualify');\n\nreturn {\n  json: {\n    telegram_chat_id: chatId,\n    telegram_user_id: userId,\n    telegram_username: username,\n    initial_message: text,\n    is_start_command: isStartCommand,\n    timestamp: new Date().toISOString(),\n    event_id: `LQC-${Date.now()}-${userId}`\n  }\n};"
+      },
+      "id": "extract-telegram-data",
+      "name": "Extract Telegram Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.is_start_command}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-start-command",
+      "name": "Check Start Command",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json.telegram_chat_id}}",
+        "text": "Welcome to the Healthcare Lead Qualification System! 🏥\n\nTo get started with your personalized care assessment, please complete our secure intake form:\n\n🔒 This form is HIPAA-compliant and your information is protected.\n\n👉 Complete Form: {{$node[\"Generate Jotform Link\"].json.form_url}}\n\nOnce submitted, our team will review your information and contact you within 24 hours via your preferred method.\n\nQuestions? Reply to this message anytime."
+      },
+      "id": "send-welcome-message",
+      "name": "Send Welcome Message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [850, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate unique Jotform link with pre-filled data\nconst baseUrl = 'https://form.jotform.com/233445566778899';\nconst telegramData = $input.item.json;\n\n// Pre-fill Telegram info as hidden fields\nconst params = new URLSearchParams({\n  telegram_user_id: telegramData.telegram_user_id,\n  telegram_username: telegramData.telegram_username,\n  event_id: telegramData.event_id,\n  source: 'telegram_bot'\n});\n\nconst formUrl = `${baseUrl}?${params.toString()}`;\n\nreturn {\n  json: {\n    ...telegramData,\n    form_url: formUrl,\n    form_type: 'jotform_hipaa_compliant'\n  }\n};"
+      },
+      "id": "generate-jotform-link",
+      "name": "Generate Jotform Link",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "healthcare-lead-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "jotform-webhook",
+      "name": "Jotform Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 600],
+      "webhookId": "jotform-intake-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse Jotform submission data\nconst formData = $input.item.json;\n\n// Extract lead details\nconst leadDetails = {\n  lead_name: formData.q1_fullName || '',\n  contact_email: formData.q2_email || '',\n  preferred_phone: formData.q3_phone || '',\n  contact_preference: formData.q4_contactPreference || 'Email',\n  timezone: formData.q5_timezone || 'UTC',\n  geographic_location: formData.q6_location || ''\n};\n\n// Extract clinical intake data (PHI)\nconst clinicalData = {\n  is_phi_data: true,\n  primary_need: formData.q7_primaryNeed || '',\n  timeline_urgency: formData.q8_timeline || '',\n  insurance_payer: formData.q9_insurance || '',\n  detailed_pain_point: formData.q10_description || '',\n  current_status: formData.q11_currentTreatment || 'None',\n  referral_source: formData.q12_referralSource || 'Direct'\n};\n\n// Extract metadata\nconst metadata = {\n  event_id: formData.event_id || `LQC-${Date.now()}`,\n  telegram_user_id: formData.telegram_user_id || null,\n  telegram_username: formData.telegram_username || null,\n  submission_timestamp: new Date().toISOString(),\n  form_submission_id: formData.submissionID || null\n};\n\nreturn {\n  json: {\n    lead_details: leadDetails,\n    clinical_intake_data: clinicalData,\n    system_metadata: metadata,\n    raw_form_data: formData\n  }\n};"
+      },
+      "id": "parse-jotform-data",
+      "name": "Parse Jotform Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 600]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Automated Lead Qualification Logic\nconst data = $input.item.json;\nconst lead = data.lead_details;\nconst clinical = data.clinical_intake_data;\n\nlet score = 0;\nlet qualificationNotes = [];\n\n// 1. Geographic Eligibility (30 points)\nconst serviceAreas = ['California', 'Texas', 'New York', 'Florida'];\nconst isInServiceArea = serviceAreas.some(area => \n  lead.geographic_location.toLowerCase().includes(area.toLowerCase())\n);\nif (isInServiceArea) {\n  score += 30;\n  qualificationNotes.push('✓ Geographic: In service area');\n} else {\n  qualificationNotes.push('✗ Geographic: Outside service area');\n}\n\n// 2. Timeline/Urgency (25 points)\nconst urgentKeywords = ['immediate', 'within 1 week', 'asap', 'urgent', 'now'];\nconst isUrgent = urgentKeywords.some(keyword =>\n  clinical.timeline_urgency.toLowerCase().includes(keyword)\n);\nif (isUrgent) {\n  score += 25;\n  qualificationNotes.push('✓ Timeline: Urgent need');\n} else if (clinical.timeline_urgency.toLowerCase().includes('within 2 weeks')) {\n  score += 15;\n  qualificationNotes.push('✓ Timeline: Near-term need');\n} else {\n  score += 5;\n  qualificationNotes.push('△ Timeline: Future planning');\n}\n\n// 3. Primary Need Match (25 points)\nconst targetServices = [\n  'physical therapy',\n  'mental health',\n  'chronic pain',\n  'rehabilitation',\n  'wellness counseling'\n];\nconst needMatch = targetServices.some(service =>\n  clinical.primary_need.toLowerCase().includes(service)\n);\nif (needMatch) {\n  score += 25;\n  qualificationNotes.push('✓ Service: Matches target offerings');\n} else {\n  qualificationNotes.push('△ Service: May require specialist referral');\n}\n\n// 4. Insurance Acceptance (20 points)\nconst acceptedInsurance = [\n  'blue cross',\n  'aetna',\n  'united healthcare',\n  'cigna',\n  'medicare',\n  'medicaid'\n];\nconst insuranceAccepted = acceptedInsurance.some(ins =>\n  clinical.insurance_payer.toLowerCase().includes(ins)\n);\nif (insuranceAccepted) {\n  score += 20;\n  qualificationNotes.push('✓ Insurance: Accepted provider');\n} else if (clinical.insurance_payer.toLowerCase().includes('self-pay')) {\n  score += 15;\n  qualificationNotes.push('✓ Insurance: Self-pay option');\n} else {\n  qualificationNotes.push('△ Insurance: May require verification');\n}\n\n// Determine qualification status\nlet qualificationStatus = 'UNQUALIFIED';\nlet priorityLevel = 'LOW';\n\nif (score >= 80) {\n  qualificationStatus = 'HIGHLY_QUALIFIED';\n  priorityLevel = 'HIGH';\n} else if (score >= 60) {\n  qualificationStatus = 'QUALIFIED';\n  priorityLevel = 'MEDIUM';\n} else if (score >= 40) {\n  qualificationStatus = 'NEEDS_REVIEW';\n  priorityLevel = 'LOW';\n}\n\nreturn {\n  json: {\n    ...data,\n    qualification_result: {\n      lead_score: score,\n      qualification_status: qualificationStatus,\n      priority_level: priorityLevel,\n      qualification_notes: qualificationNotes,\n      auto_qualified: score >= 60,\n      requires_human_review: score < 60,\n      scored_at: new Date().toISOString()\n    }\n  }\n};"
+      },
+      "id": "automated-qualification",
+      "name": "Automated Qualification Logic",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [650, 600]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.qualification_result.lead_score}}",
+              "operation": "largerEqual",
+              "value2": 60
+            }
+          ]
+        }
+      },
+      "id": "check-qualification",
+      "name": "Check Qualification Score",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 600]
+    },
+    {
+      "parameters": {
+        "resource": "page",
+        "operation": "create",
+        "databaseId": "{{$env.NOTION_DATABASE_ID}}",
+        "title": "={{$json.lead_details.lead_name}} - {{$json.qualification_result.qualification_status}}",
+        "properties": {
+          "property": [
+            {
+              "key": "Lead Name",
+              "textValue": "={{$json.lead_details.lead_name}}"
+            },
+            {
+              "key": "Email",
+              "textValue": "={{$json.lead_details.contact_email}}"
+            },
+            {
+              "key": "Phone",
+              "textValue": "={{$json.lead_details.preferred_phone}}"
+            },
+            {
+              "key": "Lead Score",
+              "numberValue": "={{$json.qualification_result.lead_score}}"
+            },
+            {
+              "key": "Status",
+              "selectValue": "={{$json.qualification_result.qualification_status}}"
+            },
+            {
+              "key": "Priority",
+              "selectValue": "={{$json.qualification_result.priority_level}}"
+            },
+            {
+              "key": "Primary Need",
+              "textValue": "={{$json.clinical_intake_data.primary_need}}"
+            },
+            {
+              "key": "Timeline",
+              "textValue": "={{$json.clinical_intake_data.timeline_urgency}}"
+            },
+            {
+              "key": "Insurance",
+              "textValue": "={{$json.clinical_intake_data.insurance_payer}}"
+            },
+            {
+              "key": "Contact Preference",
+              "selectValue": "={{$json.lead_details.contact_preference}}"
+            },
+            {
+              "key": "Event ID",
+              "textValue": "={{$json.system_metadata.event_id}}"
+            }
+          ]
+        },
+        "blockContent": "## Clinical Details (PHI Protected)\n\n**Detailed Pain Point:**\n{{$json.clinical_intake_data.detailed_pain_point}}\n\n**Current Treatment Status:**\n{{$json.clinical_intake_data.current_status}}\n\n**Referral Source:**\n{{$json.clinical_intake_data.referral_source}}\n\n## Qualification Analysis\n\n**Lead Score:** {{$json.qualification_result.lead_score}}/100\n\n**Qualification Notes:**\n{{$json.qualification_result.qualification_notes.join('\\n')}}\n\n**Submission Time:** {{$json.system_metadata.submission_timestamp}}"
+      },
+      "id": "create-notion-record",
+      "name": "Create Notion Database Record",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [1050, 500],
+      "credentials": {
+        "notionApi": {
+          "id": "2",
+          "name": "Notion API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Format lead data for admin notification\nconst data = $input.item.json;\nconst lead = data.lead_details;\nconst qual = data.qualification_result;\nconst clinical = data.clinical_intake_data;\nconst notionRecord = $input.all()[0].json;\n\n// Determine emoji based on priority\nconst priorityEmoji = {\n  'HIGH': '🔴',\n  'MEDIUM': '🟡',\n  'LOW': '🟢'\n};\n\nconst emoji = priorityEmoji[qual.priority_level] || '⚪';\n\n// Build admin notification message (NO PHI in Telegram)\nconst message = `${emoji} **NEW QUALIFIED LEAD** ${emoji}\n\n**Lead Score:** ${qual.lead_score}/100\n**Status:** ${qual.qualification_status}\n**Priority:** ${qual.priority_level}\n\n**Contact Info:**\n• Name: ${lead.lead_name}\n• Email: ${lead.contact_email}\n• Phone: ${lead.preferred_phone}\n• Preferred Contact: ${lead.contact_preference}\n• Location: ${lead.geographic_location}\n\n**Service Request:**\n• Need: ${clinical.primary_need}\n• Timeline: ${clinical.timeline_urgency}\n• Insurance: ${clinical.insurance_payer}\n\n**Qualification Notes:**\n${qual.qualification_notes.join('\\n')}\n\n**Next Steps:**\n1. Review full details in Notion\n2. Contact within 24 hours via ${lead.contact_preference}\n3. Verify insurance eligibility\n\n📊 **Notion Record:** ${notionRecord.url || 'Created'}\n🆔 **Event ID:** ${data.system_metadata.event_id}\n⏰ **Submitted:** ${new Date(data.system_metadata.submission_timestamp).toLocaleString()}`;\n\nreturn {\n  json: {\n    ...data,\n    admin_notification: {\n      message: message,\n      chat_id: process.env.TELEGRAM_ADMIN_GROUP_ID,\n      notion_url: notionRecord.url,\n      should_notify: qual.lead_score >= 60\n    }\n  }\n};"
+      },
+      "id": "format-admin-notification",
+      "name": "Format Admin Notification",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1250, 500]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json.admin_notification.chat_id}}",
+        "text": "={{$json.admin_notification.message}}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "notify-admin-group",
+      "name": "Notify Admin Group (Telegram)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1450, 500],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "llmChain",
+        "model": "gpt-4",
+        "systemMessage": "You are a healthcare outreach specialist. Create a personalized, empathetic outreach message for a qualified lead. The message should:\n1. Acknowledge their specific health concern\n2. Confirm we can help based on their needs\n3. Outline next steps\n4. Be warm, professional, and HIPAA-compliant\n5. Match the tone to their contact preference (email/phone/telegram)",
+        "prompt": "Create a personalized outreach message for:\n\nLead Name: {{$json.lead_details.lead_name}}\nPrimary Need: {{$json.clinical_intake_data.primary_need}}\nTimeline: {{$json.clinical_intake_data.timeline_urgency}}\nContact Preference: {{$json.lead_details.contact_preference}}\nLead Score: {{$json.qualification_result.lead_score}}\n\nThe message will be sent via: {{$json.lead_details.contact_preference}}"
+      },
+      "id": "generate-outreach-message",
+      "name": "Generate Personalized Outreach (LLM)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [1250, 700],
+      "credentials": {
+        "openAiApi": {
+          "id": "3",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.lead_details.contact_preference}}",
+              "value2": "Email"
+            }
+          ]
+        }
+      },
+      "id": "route-by-contact-preference",
+      "name": "Route by Contact Preference",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [1450, 700]
+    },
+    {
+      "parameters": {
+        "fromEmail": "care@yourhealthcareservice.com",
+        "toEmail": "={{$json.lead_details.contact_email}}",
+        "subject": "Your Healthcare Assessment - Next Steps",
+        "message": "={{$node[\"Generate Personalized Outreach (LLM)\"].json.output}}",
+        "options": {
+          "replyTo": "support@yourhealthcareservice.com"
+        }
+      },
+      "id": "send-email-outreach",
+      "name": "Send Email Outreach",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1650, 600],
+      "credentials": {
+        "smtp": {
+          "id": "4",
+          "name": "SMTP Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json.system_metadata.telegram_user_id}}",
+        "text": "={{$node[\"Generate Personalized Outreach (LLM)\"].json.output}}"
+      },
+      "id": "send-telegram-outreach",
+      "name": "Send Telegram Outreach",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1650, 700],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"event_id\": $json.system_metadata.event_id, \"qualification_status\": $json.qualification_result.qualification_status, \"lead_score\": $json.qualification_result.lead_score, \"message\": \"Thank you! Your information has been received and our team will contact you soon.\" } }}"
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1850, 600]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json.telegram_chat_id}}",
+        "text": "❌ Invalid command. Please use /start to begin the qualification process."
+      },
+      "id": "send-error-message",
+      "name": "Send Error Message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [850, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Handle unqualified leads - store but don't auto-contact\nconst data = $input.item.json;\nreturn {\n  json: {\n    ...data,\n    admin_notification: {\n      message: `⚠️ **UNQUALIFIED LEAD - NEEDS REVIEW**\\n\\n**Lead Score:** ${data.qualification_result.lead_score}/100\\n**Name:** ${data.lead_details.lead_name}\\n**Event ID:** ${data.system_metadata.event_id}\\n\\nReview in Notion for potential follow-up.`,\n      chat_id: process.env.TELEGRAM_ADMIN_GROUP_ID,\n      should_notify: true\n    }\n  }\n};"
+      },
+      "id": "handle-unqualified",
+      "name": "Handle Unqualified Lead",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1050, 700]
+    }
+  ],
+  "connections": {
+    "Telegram Bot Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Telegram Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Telegram Data": {
+      "main": [
+        [
+          {
+            "node": "Check Start Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Start Command": {
+      "main": [
+        [
+          {
+            "node": "Generate Jotform Link",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Error Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Jotform Link": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jotform Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Jotform Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Jotform Data": {
+      "main": [
+        [
+          {
+            "node": "Automated Qualification Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Automated Qualification Logic": {
+      "main": [
+        [
+          {
+            "node": "Check Qualification Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Qualification Score": {
+      "main": [
+        [
+          {
+            "node": "Create Notion Database Record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Notion Database Record",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Handle Unqualified Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Notion Database Record": {
+      "main": [
+        [
+          {
+            "node": "Format Admin Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Admin Notification": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin Group (Telegram)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate Personalized Outreach (LLM)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Personalized Outreach (LLM)": {
+      "main": [
+        [
+          {
+            "node": "Route by Contact Preference",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Contact Preference": {
+      "main": [
+        [
+          {
+            "node": "Send Email Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Telegram Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email Outreach": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Telegram Outreach": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Unqualified Lead": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin Group (Telegram)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "error-handler-workflow"
+  },
+  "versionId": "1.0.0",
+  "id": "healthcare-lqc-system",
+  "tags": [
+    {
+      "name": "healthcare",
+      "id": "1"
+    },
+    {
+      "name": "lead-qualification",
+      "id": "2"
+    },
+    {
+      "name": "hipaa-compliant",
+      "id": "3"
+    },
+    {
+      "name": "automation",
+      "id": "4"
+    }
+  ],
+  "meta": {
+    "instanceId": "caphe-workflows-production"
+  }
+}

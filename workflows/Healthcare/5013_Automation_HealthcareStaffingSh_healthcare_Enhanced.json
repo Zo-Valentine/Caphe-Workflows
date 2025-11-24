@@ -1,0 +1,603 @@
+{
+  "meta": {
+    "instanceId": "workflow-43543",
+    "versionId": "1.0.0",
+    "createdAt": "2025-11-23T04:34:11.508604",
+    "updatedAt": "2025-11-23T04:34:11.508606",
+    "owner": "Caphe Workflows",
+    "license": "MIT",
+    "category": "healthcare",
+    "subcategory": "Appointments",
+    "status": "active",
+    "priority": "high",
+    "environment": "production",
+    "business_metadata": {
+      "useCase": "Perfect for 'Uber-for-Nurses' platforms and gig economy healthcare staffing. Captures candidate shift preferences via web form, calculates availability score, matches against open facility shifts using multi-factor algorithm (specialty, shift time, location, days, weekend/night willingness), and instantly notifies candidates via SMS + email when high-quality matches (70%+) are found. Ideal for CNAs, LPNs, and PRN RNs seeking flexible shift work.",
+      "difficulty": "advanced",
+      "estimatedSetupTime": "45-60 minutes",
+      "features": [
+        "Multi-factor matching algorithm",
+        "Availability score calculation (0-100)",
+        "Real-time shift matching",
+        "Instant SMS alerts for top matches",
+        "Detailed email with all matches",
+        "Location-based filtering (zip code proximity)",
+        "Specialty requirement validation",
+        "Shift time preference matching",
+        "Weekend/night shift bonus scoring",
+        "Flexible schedule detection",
+        "Match quality rating (Excellent/Good/Fair)",
+        "Top 5 matches per candidate",
+        "No-match notification with stay-updated message",
+        "Slack team notifications"
+      ],
+      "limitations": [
+        "Simplified location matching (zip code difference, not true distance)",
+        "No real-time shift booking (manual confirmation required)",
+        "Static matching rules (no machine learning)",
+        "Requires manual open shift data entry",
+        "No candidate certification validation",
+        "SMS costs per notification"
+      ],
+      "requirements": [
+        "Google Sheets with 'Candidate_Availability', 'Open_Shifts', and 'Shift_Matches' sheets",
+        "Webhook endpoint for intake form",
+        "Twilio account for SMS alerts",
+        "Email account for detailed notifications",
+        "Slack workspace for staffing team alerts",
+        "Facility shift data with location and requirements"
+      ],
+      "tags": [
+        "shift-matching",
+        "availability-tracking",
+        "healthcare-staffing",
+        "gig-economy",
+        "automated-matching",
+        "sms-alerts",
+        "prn-staffing",
+        "nurse-scheduling"
+      ],
+      "integrations": [
+        "Webhook",
+        "Google Sheets",
+        "Email (SMTP)",
+        "Twilio SMS",
+        "Slack"
+      ],
+      "pricing": {
+        "n8n": "Free (self-hosted) or $20+/month (cloud)",
+        "googleSheets": "Free",
+        "twilio": "$0.0079/SMS (USA)",
+        "email": "Free (Gmail) or $15/month (SendGrid)",
+        "slack": "Free tier available"
+      },
+      "lastUpdated": "2025-11-19"
+    }
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "shift-preference-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "intake-webhook",
+      "name": "Shift Preference Intake Form",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        400
+      ],
+      "webhookId": "shift-intake"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "candidate-id",
+              "name": "candidate_id",
+              "value": "={{ $json.email }}-{{ $now.toUnixInteger().toString().slice(-6) }}",
+              "type": "string"
+            },
+            {
+              "id": "intake-timestamp",
+              "name": "intake_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "availability-score",
+              "name": "availability_score",
+              "value": "={{ ($json.shifts_per_week * 10) + ($json.flexible_schedule ? 20 : 0) + ($json.weekend_availability ? 15 : 0) + ($json.night_shift_willing ? 15 : 0) }}",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "id": "process-intake",
+      "name": "Process Intake Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        460,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Candidate_Availability",
+        "columns": {
+          "mappings": [
+            {
+              "column": "candidate_id",
+              "value": "={{ $json.candidate_id }}"
+            },
+            {
+              "column": "name",
+              "value": "={{ $json.first_name + ' ' + $json.last_name }}"
+            },
+            {
+              "column": "email",
+              "value": "={{ $json.email }}"
+            },
+            {
+              "column": "phone",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "column": "specialty",
+              "value": "={{ $json.specialty }}"
+            },
+            {
+              "column": "zip_code",
+              "value": "={{ $json.zip_code }}"
+            },
+            {
+              "column": "preferred_shift",
+              "value": "={{ $json.preferred_shift }}"
+            },
+            {
+              "column": "shifts_per_week",
+              "value": "={{ $json.shifts_per_week }}"
+            },
+            {
+              "column": "days_available",
+              "value": "={{ $json.days_available }}"
+            },
+            {
+              "column": "weekend_availability",
+              "value": "={{ $json.weekend_availability }}"
+            },
+            {
+              "column": "night_shift_willing",
+              "value": "={{ $json.night_shift_willing }}"
+            },
+            {
+              "column": "flexible_schedule",
+              "value": "={{ $json.flexible_schedule }}"
+            },
+            {
+              "column": "travel_distance_miles",
+              "value": "={{ $json.travel_distance_miles }}"
+            },
+            {
+              "column": "availability_score",
+              "value": "={{ $json.availability_score }}"
+            },
+            {
+              "column": "intake_at",
+              "value": "={{ $json.intake_at }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "store-availability",
+      "name": "Store Candidate Availability",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "sheetId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "range": "Open_Shifts!A:K",
+        "options": {}
+      },
+      "id": "get-open-shifts",
+      "name": "Get Open Shifts",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Match candidate to open shifts based on preferences\nconst candidate = $input.first().json;\nconst openShifts = $input.all().slice(1);\n\nconst matches = [];\n\nfor (const shift of openShifts) {\n  let matchScore = 0;\n  const matchReasons = [];\n  \n  // Specialty match (required)\n  if (shift.json.required_specialty !== candidate.specialty) {\n    continue; // Skip if specialty doesn't match\n  }\n  matchScore += 50;\n  matchReasons.push('Specialty match');\n  \n  // Shift time preference\n  const shiftTime = shift.json.shift_time; // \"Day\", \"Evening\", \"Night\"\n  if (candidate.preferred_shift.includes(shiftTime)) {\n    matchScore += 30;\n    matchReasons.push('Preferred shift time');\n  } else if (candidate.flexible_schedule) {\n    matchScore += 15;\n    matchReasons.push('Flexible schedule');\n  }\n  \n  // Weekend availability\n  const isWeekend = shift.json.day_of_week === 'Saturday' || shift.json.day_of_week === 'Sunday';\n  if (isWeekend && candidate.weekend_availability) {\n    matchScore += 20;\n    matchReasons.push('Weekend availability');\n  }\n  \n  // Night shift willingness\n  if (shiftTime === 'Night' && candidate.night_shift_willing) {\n    matchScore += 15;\n    matchReasons.push('Night shift willing');\n  }\n  \n  // Day of week match\n  if (candidate.days_available.includes(shift.json.day_of_week)) {\n    matchScore += 10;\n    matchReasons.push('Day available');\n  }\n  \n  // Location/distance (simplified - in production, use geocoding)\n  // For now, just check if zip codes are close\n  const candidateZip = parseInt(candidate.zip_code);\n  const facilityZip = parseInt(shift.json.facility_zip);\n  const zipDiff = Math.abs(candidateZip - facilityZip);\n  \n  if (zipDiff <= 50) {\n    matchScore += 25;\n    matchReasons.push('Close location');\n  } else if (zipDiff <= 100) {\n    matchScore += 15;\n    matchReasons.push('Reasonable distance');\n  } else if (zipDiff <= 200) {\n    matchScore += 5;\n    matchReasons.push('Within travel range');\n  } else {\n    continue; // Too far, skip this shift\n  }\n  \n  // Only include matches with score >= 70\n  if (matchScore >= 70) {\n    matches.push({\n      ...candidate,\n      shift_id: shift.json.shift_id,\n      facility_name: shift.json.facility_name,\n      facility_address: shift.json.facility_address,\n      shift_date: shift.json.shift_date,\n      shift_time: shift.json.shift_time,\n      day_of_week: shift.json.day_of_week,\n      hourly_rate: shift.json.hourly_rate,\n      shift_duration: shift.json.shift_duration,\n      match_score: matchScore,\n      match_reasons: matchReasons.join(', '),\n      match_quality: matchScore >= 90 ? 'Excellent' : (matchScore >= 80 ? 'Good' : 'Fair')\n    });\n  }\n}\n\n// Sort by match score (highest first)\nmatches.sort((a, b) => b.match_score - a.match_score);\n\n// Return top 5 matches\nreturn matches.slice(0, 5);"
+      },
+      "id": "match-algorithm",
+      "name": "Match Candidate to Shifts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "id": "has-matches",
+              "leftValue": "={{ $json.match_score }}",
+              "rightValue": "70",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-matches",
+      "name": "Check if Matches Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Shift_Matches",
+        "columns": {
+          "mappings": [
+            {
+              "column": "candidate_id",
+              "value": "={{ $json.candidate_id }}"
+            },
+            {
+              "column": "candidate_name",
+              "value": "={{ $json.first_name + ' ' + $json.last_name }}"
+            },
+            {
+              "column": "shift_id",
+              "value": "={{ $json.shift_id }}"
+            },
+            {
+              "column": "facility_name",
+              "value": "={{ $json.facility_name }}"
+            },
+            {
+              "column": "shift_date",
+              "value": "={{ $json.shift_date }}"
+            },
+            {
+              "column": "shift_time",
+              "value": "={{ $json.shift_time }}"
+            },
+            {
+              "column": "match_score",
+              "value": "={{ $json.match_score }}"
+            },
+            {
+              "column": "match_quality",
+              "value": "={{ $json.match_quality }}"
+            },
+            {
+              "column": "match_reasons",
+              "value": "={{ $json.match_reasons }}"
+            },
+            {
+              "column": "matched_at",
+              "value": "={{ $now.toISO() }}"
+            },
+            {
+              "column": "status",
+              "value": "pending_notification"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-matches",
+      "name": "Log Shift Matches",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.STAFFING_EMAIL }}",
+        "toEmail": "={{ $json.email }}",
+        "subject": "🎯 Perfect Shift Matches Found for You!",
+        "message": "Hi {{ $json.first_name }},\n\nGreat news! We found {{ $input.all().length }} shift{{ $input.all().length > 1 ? 's' : '' }} that match your preferences!\n\n{{ $input.all().map((item, index) => `\n**Match #${index + 1} - ${item.json.match_quality} Match (${item.json.match_score}% score)**\n📍 ${item.json.facility_name}\n📅 ${item.json.shift_date} (${item.json.day_of_week})\n⏰ ${item.json.shift_time} shift (${item.json.shift_duration} hours)\n💰 $${item.json.hourly_rate}/hour\n✅ Why it's a match: ${item.json.match_reasons}\n\n`).join('') }}\n\n**Your Preferences:**\n- Specialty: {{ $json.specialty }}\n- Preferred Shift: {{ $json.preferred_shift }}\n- Shifts/Week: {{ $json.shifts_per_week }}\n- Weekend Available: {{ $json.weekend_availability ? 'Yes' : 'No' }}\n- Night Shift: {{ $json.night_shift_willing ? 'Yes' : 'No' }}\n\n**Next Steps:**\n1. Review the matches above\n2. Reply to this email with shift IDs you're interested in\n3. Or call us at {{ $env.STAFFING_PHONE }} to claim a shift\n\n**Quick Apply:** Click here to view and apply: [View Shifts](#)\n\nThese shifts fill fast, so don't wait!\n\nBest regards,\nStaffing Team",
+        "options": {}
+      },
+      "id": "email-matches",
+      "name": "Email Shift Matches",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1780,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "generic",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/={{ $env.TWILIO_ACCOUNT_SID }}/Messages.json",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "From",
+              "value": "={{ $env.TWILIO_PHONE }}"
+            },
+            {
+              "name": "To",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "name": "Body",
+              "value": "Hi {{ $json.first_name }}! 🎯 We found {{ $input.all().length }} shift match{{ $input.all().length > 1 ? 'es' : '' }} for you! Top match: {{ $input.first().json.facility_name }} on {{ $input.first().json.shift_date }} ({{ $input.first().json.shift_time }}) - ${{ $input.first().json.hourly_rate }}/hr. Check your email for details or call {{ $env.STAFFING_PHONE }} to claim it!"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "sms-alert",
+      "name": "SMS Instant Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1780,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "={{ $env.SLACK_STAFFING_CHANNEL }}",
+        "text": "🎯 *New Shift Matches Generated*\n\n*Candidate:* {{ $json.first_name }} {{ $json.last_name }}\n*Specialty:* {{ $json.specialty }}\n*Location:* {{ $json.zip_code }}\n*Availability Score:* {{ $json.availability_score }}\n\n*Matches Found:* {{ $input.all().length }}\n{{ $input.all().map((item, index) => `${index + 1}. ${item.json.facility_name} - ${item.json.shift_date} (${item.json.shift_time}) - ${item.json.match_quality} match (${item.json.match_score}%)`).join('\\n') }}\n\n*Status:* Candidate notified via email and SMS",
+        "otherOptions": {}
+      },
+      "id": "notify-staffing-team",
+      "name": "Notify Staffing Team",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [
+        1780,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.STAFFING_EMAIL }}",
+        "toEmail": "={{ $json.email }}",
+        "subject": "We're Building Your Shift Profile",
+        "message": "Hi {{ $json.first_name }},\n\nThank you for sharing your shift preferences! We're currently searching for matches.\n\n**Your Preferences:**\n- Specialty: {{ $json.specialty }}\n- Preferred Shift: {{ $json.preferred_shift }}\n- Shifts/Week: {{ $json.shifts_per_week }}\n- Location: {{ $json.zip_code }}\n- Weekend Available: {{ $json.weekend_availability ? 'Yes' : 'No' }}\n- Night Shift: {{ $json.night_shift_willing ? 'Yes' : 'No' }}\n\n**What's Next:**\n- We're actively monitoring new shifts that match your profile\n- You'll receive instant SMS alerts when matches appear\n- We typically find matches within 24-48 hours\n\n**In the Meantime:**\n- Keep your phone handy for SMS alerts\n- Update your preferences anytime: [Update Preferences](#)\n- Browse all available shifts: [View Open Shifts](#)\n\nWe'll be in touch soon!\n\nBest regards,\nStaffing Team\n{{ $env.STAFFING_PHONE }}",
+        "options": {}
+      },
+      "id": "no-matches-email",
+      "name": "No Matches - Stay Updated",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1560,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"candidate_id\": $json.candidate_id, \"matches_found\": $input.all().length, \"availability_score\": $json.availability_score, \"message\": $input.all().length > 0 ? \"Matches found and notifications sent\" : \"No matches yet, we'll notify you when shifts become available\" } }}",
+        "options": {}
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2000,
+        400
+      ]
+    },
+    {
+      "id": "error-0000b65d",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        400
+      ],
+      "parameters": {
+        "message": "Workflow execution error",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Shift Preference Intake Form": {
+      "main": [
+        [
+          {
+            "node": "Process Intake Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Intake Data": {
+      "main": [
+        [
+          {
+            "node": "Store Candidate Availability",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Candidate Availability": {
+      "main": [
+        [
+          {
+            "node": "Get Open Shifts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Open Shifts": {
+      "main": [
+        [
+          {
+            "node": "Match Candidate to Shifts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Candidate to Shifts": {
+      "main": [
+        [
+          {
+            "node": "Check if Matches Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Matches Found": {
+      "main": [
+        [
+          {
+            "node": "Log Shift Matches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Matches - Stay Updated",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Shift Matches": {
+      "main": [
+        [
+          {
+            "node": "Email Shift Matches",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SMS Instant Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify Staffing Team",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Shift Matches": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SMS Instant Alert": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Staffing Team": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Matches - Stay Updated": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "name": "Healthcare Staffing - Shift Matching & Availability",
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "shift-matching",
+    "availability-tracking",
+    "healthcare-staffing",
+    "gig-economy",
+    "automated-matching",
+    "sms-alerts",
+    "prn-staffing",
+    "nurse-scheduling"
+  ],
+  "active": true,
+  "staticData": {},
+  "pinData": {},
+  "versionId": 1
+}

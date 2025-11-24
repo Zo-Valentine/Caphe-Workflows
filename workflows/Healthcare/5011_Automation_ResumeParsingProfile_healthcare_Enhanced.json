@@ -1,0 +1,387 @@
+{
+  "meta": {
+    "instanceId": "workflow-23404",
+    "versionId": "1.0.0",
+    "createdAt": "2025-11-23T04:34:11.507477",
+    "updatedAt": "2025-11-23T04:34:11.507479",
+    "owner": "Caphe Workflows",
+    "license": "MIT",
+    "category": "healthcare",
+    "subcategory": "Appointments",
+    "status": "active",
+    "priority": "medium",
+    "environment": "production",
+    "business_metadata": {
+      "useCase": "Healthcare recruiters receive hundreds of nursing resumes and manually extracting certifications, specialties, and experience is time-consuming. This workflow uses AI to automatically parse resumes, extract structured data, calculate profile completeness scores, and enrich candidate records.",
+      "difficulty": "intermediate",
+      "estimatedSetupTime": "25-35 minutes",
+      "features": [
+        "AI-powered resume parsing using GPT-4",
+        "Automatic extraction of nursing certifications (RN, CNA, BSN, etc.)",
+        "Specialty identification (ICU, ER, Med-Surg, etc.)",
+        "Years of experience calculation",
+        "Skills and education extraction",
+        "Profile completeness scoring (0-100)",
+        "Experience level classification (Junior/Mid-Level/Senior)",
+        "Automatic Google Sheets profile enrichment",
+        "Email notifications to recruiters with parsed data"
+      ],
+      "limitations": [
+        "Requires OpenAI API key (costs $0.01-0.03 per resume)",
+        "Resume must be in text format (PDF conversion needed separately)",
+        "AI accuracy depends on resume quality and formatting",
+        "No support for resume file upload (text/URL only)",
+        "Limited to English-language resumes",
+        "No automatic deduplication of candidates"
+      ],
+      "requirements": {
+        "credentials": [
+          "OpenAI API Key (GPT-4 access recommended)",
+          "Google Sheets OAuth2 (read/write access)",
+          "SMTP Email Account"
+        ],
+        "external": [
+          "Google Sheet with 'Candidates' tab including columns: candidate_id, candidate_name, certifications, specialties, years_experience, education, skills, work_history, languages, licenses, parsed_date, enrichment_score, profile_completeness",
+          "Web form or application that can POST resume text to webhook URL"
+        ],
+        "environment": [
+          "GOOGLE_SHEET_ID - Your Google Sheet ID",
+          "RECRUITER_EMAIL - Recruiter's email address",
+          "SHEET_URL - Direct URL to your Google Sheet"
+        ]
+      },
+      "tags": [
+        "healthcare",
+        "resume-parsing",
+        "AI",
+        "OpenAI",
+        "candidate-enrichment",
+        "RN",
+        "CNA",
+        "recruitment",
+        "NLP"
+      ],
+      "integrations": [
+        "Webhook",
+        "OpenAI GPT-4",
+        "Google Sheets",
+        "Email (SMTP)",
+        "Code (JavaScript)"
+      ],
+      "pricing": {
+        "n8n": "Free tier: 20 executions/day, Paid: $20/month unlimited",
+        "openai": "$0.01-0.03 per resume (GPT-4 Turbo pricing)",
+        "googleSheets": "Free with Google account",
+        "smtp": "Free with Gmail or provider",
+        "estimatedCost": "$10-30/month for 1000 resumes"
+      },
+      "lastUpdated": "2025-11-19"
+    }
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "resume-upload",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-resume",
+      "name": "Webhook - Resume Upload",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "resume-upload-endpoint"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "candidate-id",
+              "name": "candidate_id",
+              "value": "={{ $json.body.candidate_id }}",
+              "type": "string"
+            },
+            {
+              "id": "resume-text",
+              "name": "resume_text",
+              "value": "={{ $json.body.resume_text || $json.body.resume_url }}",
+              "type": "string"
+            },
+            {
+              "id": "candidate-name",
+              "name": "candidate_name",
+              "value": "={{ $json.body.candidate_name }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-resume-data",
+      "name": "Extract Resume Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "modelId": "gpt-4-turbo-preview",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an expert healthcare recruiter and resume parser. Analyze nursing resumes and extract structured data in JSON format. Focus on: certifications (RN, CNA, BSN, etc.), specialties (ICU, ER, Med-Surg, etc.), years of experience, skills, education, and work history."
+            },
+            {
+              "role": "user",
+              "content": "=Parse this nursing resume and extract key information:\\n\\n{{ $json.resume_text }}\\n\\nReturn ONLY valid JSON with these fields:\\n{\\n  \"certifications\": [],\\n  \"specialties\": [],\\n  \"years_experience\": 0,\\n  \"education\": [],\\n  \"skills\": [],\\n  \"work_history\": [],\\n  \"languages\": [],\\n  \"licenses\": []\\n}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.2,
+          "maxTokens": 1000
+        }
+      },
+      "id": "parse-with-ai",
+      "name": "Parse Resume with OpenAI",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credentials",
+          "name": "OpenAI Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.item.json.message?.content || $input.item.json.choices[0]?.message?.content;\n\ntry {\n  const parsed = JSON.parse(response);\n  return {\n    json: {\n      ...parsed,\n      candidate_id: $('Extract Resume Data').item.json.candidate_id,\n      candidate_name: $('Extract Resume Data').item.json.candidate_name,\n      parsed_date: new Date().toISOString(),\n      specialties_csv: parsed.specialties.join(', '),\n      certifications_csv: parsed.certifications.join(', '),\n      skills_csv: parsed.skills.join(', '),\n      experience_level: parsed.years_experience < 2 ? 'Junior' : \n                       parsed.years_experience < 5 ? 'Mid-Level' : 'Senior'\n    }\n  };\n} catch (error) {\n  return {\n    json: {\n      error: 'Failed to parse AI response',\n      raw_response: response,\n      candidate_id: $('Extract Resume Data').item.json.candidate_id\n    }\n  };\n}"
+      },
+      "id": "format-parsed-data",
+      "name": "Format Parsed Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "sheetId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "range": "=Candidates!A:Z",
+        "options": {
+          "lookupColumn": "candidate_id",
+          "lookupValue": "={{ $json.candidate_id }}",
+          "valueInputMode": "USER_ENTERED"
+        }
+      },
+      "id": "update-candidate-profile",
+      "name": "Update Candidate Profile in Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1050,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-oauth",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "enrichment-score",
+              "name": "enrichment_score",
+              "value": "={{ [\n  $json.certifications?.length > 0 ? 20 : 0,\n  $json.specialties?.length > 0 ? 20 : 0,\n  $json.years_experience > 0 ? 20 : 0,\n  $json.education?.length > 0 ? 15 : 0,\n  $json.skills?.length >= 5 ? 25 : ($json.skills?.length * 5)\n].reduce((a, b) => a + b, 0) }}",
+              "type": "number"
+            },
+            {
+              "id": "profile-completeness",
+              "name": "profile_completeness",
+              "value": "={{ $json.enrichment_score >= 80 ? 'Excellent' : $json.enrichment_score >= 60 ? 'Good' : $json.enrichment_score >= 40 ? 'Fair' : 'Poor' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "calculate-score",
+      "name": "Calculate Profile Score",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        1050,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.RECRUITER_EMAIL }}",
+        "toEmail": "={{ $env.RECRUITER_EMAIL }}",
+        "subject": "=📄 Resume Parsed: {{ $('Extract Resume Data').item.json.candidate_name }}",
+        "emailType": "html",
+        "message": "=<html>\\n<body style='font-family: Arial, sans-serif;'>\\n  <h2>Resume Parsing Complete</h2>\\n  <p><strong>Candidate:</strong> {{ $('Extract Resume Data').item.json.candidate_name }}</p>\\n  <p><strong>Profile Score:</strong> {{ $json.enrichment_score }}/100 ({{ $json.profile_completeness }})</p>\\n  \\n  <h3>Extracted Information:</h3>\\n  <ul>\\n    <li><strong>Experience:</strong> {{ $('Format Parsed Data').item.json.years_experience }} years ({{ $('Format Parsed Data').item.json.experience_level }})</li>\\n    <li><strong>Certifications:</strong> {{ $('Format Parsed Data').item.json.certifications_csv }}</li>\\n    <li><strong>Specialties:</strong> {{ $('Format Parsed Data').item.json.specialties_csv }}</li>\\n    <li><strong>Skills:</strong> {{ $('Format Parsed Data').item.json.skills_csv }}</li>\\n  </ul>\\n  \\n  <p><a href='{{ $env.SHEET_URL }}' style='background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>View Full Profile</a></p>\\n</body>\\n</html>",
+        "options": {}
+      },
+      "id": "email-recruiter",
+      "name": "Email Recruiter - Profile Updated",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        100
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "SMTP Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"Resume parsed successfully\", \"candidate_id\": $('Extract Resume Data').item.json.candidate_id, \"profile_score\": $('Calculate Profile Score').item.json.enrichment_score, \"profile_completeness\": $('Calculate Profile Score').item.json.profile_completeness } }}",
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        500
+      ]
+    },
+    {
+      "id": "error-00016387",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        400
+      ],
+      "parameters": {
+        "message": "Workflow execution error",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook - Resume Upload": {
+      "main": [
+        [
+          {
+            "node": "Extract Resume Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Resume Data": {
+      "main": [
+        [
+          {
+            "node": "Parse Resume with OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Resume with OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Format Parsed Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Parsed Data": {
+      "main": [
+        [
+          {
+            "node": "Update Candidate Profile in Sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Calculate Profile Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Candidate Profile in Sheet": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Profile Score": {
+      "main": [
+        [
+          {
+            "node": "Email Recruiter - Profile Updated",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "name": "Resume Parsing & Profile Enrichment",
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    "healthcare",
+    "resume-parsing",
+    "AI",
+    "OpenAI",
+    "candidate-enrichment",
+    "RN",
+    "CNA",
+    "recruitment",
+    "NLP"
+  ],
+  "active": true,
+  "staticData": null,
+  "pinData": {},
+  "versionId": 1
+}

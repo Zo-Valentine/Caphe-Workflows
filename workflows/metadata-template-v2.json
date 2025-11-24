@@ -1,0 +1,41 @@
+{
+  "name": "Workflow Name",
+  "description": "Brief description of what the workflow does (200 chars max)",
+  "category": "Category Name",
+  "subcategory": "Subcategory Name",
+  "useCase": "Real-world application example",
+  "difficulty": "beginner|intermediate|advanced",
+  "estimatedTime": "15-30 minutes",
+
+  "tier": "free|starter|pro|business",
+  "complexity": "simple|intermediate|advanced",
+  "is_lead_magnet": true,
+  "requires_login": false,
+
+  "prerequisites": [
+    "Requirement 1",
+    "Requirement 2"
+  ],
+  "tags": [
+    "tag1",
+    "tag2"
+  ],
+  "author": {
+    "name": "Caphè Technologies",
+    "url": "https://github.com/Zo-Valentine/Caphe-Technologies-Workflows"
+  },
+  "version": "1.0.0",
+  "featured": false,
+  "triggerType": "Webhook|Scheduled|Manual|Complex",
+  "integrations": [
+    "Integration 1",
+    "Integration 2"
+  ],
+  "nodes": [
+    "Node 1",
+    "Node 2"
+  ],
+  "workflow_features": {
+    "description": "Key features of the workflow"
+  }
+}

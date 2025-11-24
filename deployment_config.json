@@ -1,0 +1,27 @@
+{
+  "platform": "Caph\u00e8 Technologies Workflows",
+  "deployment_date": "2025-11-20T14:53:18.029541",
+  "integrated_workflows": 23,
+  "platform_version": "1.0.0-caphe-enhanced",
+  "business_categories": 12,
+  "total_workflows": 2080,
+  "features": [
+    "Enhanced business categorization",
+    "Hybrid search (integration + business categories)",
+    "Rich metadata support",
+    "Improved relevance scoring",
+    "Multi-view interface"
+  ],
+  "endpoints": {
+    "web_interface": "http://localhost:8000",
+    "api_base": "http://localhost:8000/api",
+    "stats": "http://localhost:8000/api/stats",
+    "search": "http://localhost:8000/api/search"
+  },
+  "deployment_commands": {
+    "start_server": "python run.py",
+    "start_dev": "python run.py --debug",
+    "rebuild_db": "python -c 'from workflow_db import WorkflowDatabase; WorkflowDatabase().index_all_workflows(force_reindex=True)'",
+    "update_search": "python scripts/generate_search_index.py"
+  }
+}

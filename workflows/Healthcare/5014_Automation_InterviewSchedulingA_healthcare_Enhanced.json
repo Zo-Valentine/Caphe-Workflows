@@ -1,0 +1,205 @@
+{
+  "meta": {
+    "instanceId": "workflow-22429",
+    "versionId": "1.0.0",
+    "createdAt": "2025-11-23T04:34:11.509317",
+    "updatedAt": "2025-11-23T04:34:11.509318",
+    "owner": "Caphe Workflows",
+    "license": "MIT",
+    "category": "healthcare",
+    "subcategory": "Appointments",
+    "status": "active",
+    "priority": "low",
+    "environment": "production",
+    "business_metadata": {
+      "useCase": "Automate interview scheduling for healthcare candidates with instant calendar invites and email confirmations",
+      "difficulty": "beginner",
+      "estimatedSetupTime": "15-20 minutes",
+      "features": [],
+      "limitations": [],
+      "requirements": [],
+      "tags": [
+        "healthcare",
+        "scheduling",
+        "interviews",
+        "calendar",
+        "automation",
+        "recruitment"
+      ],
+      "integrations": [
+        "Webhook",
+        "Google Calendar",
+        "Email (SMTP)"
+      ],
+      "pricing": {},
+      "lastUpdated": "2025-11-19"
+    }
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "schedule-interview",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-schedule",
+      "name": "Webhook - Interview Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "calendarId": "={{ $env.GOOGLE_CALENDAR_ID }}",
+        "summary": "=Interview: {{ $json.body.candidate_name }} - {{ $json.body.position }}",
+        "start": "={{ $json.body.interview_datetime }}",
+        "end": "={{ $now.plus({minutes: 60}).toISO() }}",
+        "description": "=Candidate: {{ $json.body.candidate_name }}\\nPosition: {{ $json.body.position }}\\nEmail: {{ $json.body.candidate_email }}\\nPhone: {{ $json.body.candidate_phone }}\\nInterviewer: {{ $json.body.interviewer_name }}",
+        "attendees": "={{ [$json.body.candidate_email, $json.body.interviewer_email] }}",
+        "sendUpdates": "all"
+      },
+      "id": "create-calendar-event",
+      "name": "Create Google Calendar Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "google-calendar-oauth",
+          "name": "Google Calendar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.RECRUITER_EMAIL }}",
+        "toEmail": "={{ $('Webhook - Interview Request').item.json.body.candidate_email }}",
+        "subject": "=Interview Scheduled: {{ $('Webhook - Interview Request').item.json.body.position }}",
+        "emailType": "html",
+        "message": "=<html><body style='font-family: Arial;'><h2>Your Interview is Scheduled!</h2><p>Dear {{ $('Webhook - Interview Request').item.json.body.candidate_name }},</p><p>We're excited to schedule your interview for the <strong>{{ $('Webhook - Interview Request').item.json.body.position }}</strong> position.</p><h3>Interview Details:</h3><ul><li><strong>Date/Time:</strong> {{ $('Webhook - Interview Request').item.json.body.interview_datetime }}</li><li><strong>Duration:</strong> 60 minutes</li><li><strong>Interviewer:</strong> {{ $('Webhook - Interview Request').item.json.body.interviewer_name }}</li><li><strong>Format:</strong> Video Call</li></ul><p><a href='{{ $json.htmlLink }}' style='background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;'>Add to Calendar</a></p><p>Please reply to confirm your attendance.</p><p>Best regards,<br>Recruitment Team</p></body></html>"
+      },
+      "id": "email-candidate",
+      "name": "Email Candidate Confirmation",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        650,
+        200
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "SMTP Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.RECRUITER_EMAIL }}",
+        "toEmail": "={{ $('Webhook - Interview Request').item.json.body.interviewer_email }}",
+        "subject": "=New Interview Scheduled: {{ $('Webhook - Interview Request').item.json.body.candidate_name }}",
+        "emailType": "text",
+        "message": "=Interview scheduled for {{ $('Webhook - Interview Request').item.json.body.candidate_name }}\\n\\nPosition: {{ $('Webhook - Interview Request').item.json.body.position }}\\nDate/Time: {{ $('Webhook - Interview Request').item.json.body.interview_datetime }}\\nCandidate Email: {{ $('Webhook - Interview Request').item.json.body.candidate_email }}\\nCandidate Phone: {{ $('Webhook - Interview Request').item.json.body.candidate_phone }}\\n\\nCalendar invite sent to both parties."
+      },
+      "id": "email-interviewer",
+      "name": "Email Interviewer Notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        650,
+        400
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "SMTP Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"Interview scheduled successfully\", \"calendar_link\": $('Create Google Calendar Event').item.json.htmlLink } }}"
+      },
+      "id": "respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "id": "error-0001724a",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        400
+      ],
+      "parameters": {
+        "message": "Workflow execution error",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook - Interview Request": {
+      "main": [
+        [
+          {
+            "node": "Create Google Calendar Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Google Calendar Event": {
+      "main": [
+        [
+          {
+            "node": "Email Candidate Confirmation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email Interviewer Notification",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "name": "Interview Scheduling Automation",
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    "healthcare",
+    "scheduling",
+    "interviews",
+    "calendar",
+    "automation",
+    "recruitment"
+  ],
+  "active": true,
+  "staticData": {},
+  "pinData": {},
+  "versionId": 1
+}

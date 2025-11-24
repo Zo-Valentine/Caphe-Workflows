@@ -1,0 +1,719 @@
+{
+  "meta": {
+    "instanceId": "workflow-55944",
+    "versionId": "1.0.0",
+    "createdAt": "2025-11-23T04:34:11.514410",
+    "updatedAt": "2025-11-23T04:34:11.514411",
+    "owner": {
+      "name": "n8n Team",
+      "url": "https://n8n.io"
+    },
+    "license": "MIT",
+    "category": "healthcare",
+    "subcategory": "Patient Notifications",
+    "status": "active",
+    "priority": "high",
+    "environment": "production",
+    "business_metadata": {
+      "useCase": "Automates instant communication with candidates via Telegram bot for shift matching, applications, and scheduling",
+      "difficulty": "advanced",
+      "estimatedSetupTime": "30 minutes",
+      "features": {
+        "instantResponse": "24/7 automated responses to all messages (sub-second latency)",
+        "commandRouting": "Intelligent routing based on slash commands and keywords",
+        "interactiveButtons": "Inline keyboards for one-tap actions (no typing required)",
+        "naturalLanguage": "Understands plain English queries (e.g., 'Show me ICU shifts in LA')",
+        "messageLogging": "All conversations logged to Google Sheets for compliance",
+        "slackNotifications": "Team alerts for urgent requests or recruiter connections",
+        "multiChannelUpload": "Documents accepted via Telegram photos, web portal, or email",
+        "contextAwareness": "Maintains conversation flow with callback query handling",
+        "urgentPriority": "Keywords like 'recruiter' or 'urgent' trigger immediate Slack alerts"
+      },
+      "limitations": {
+        "telegramAdoption": "Requires candidates to have/download Telegram (high in Europe/Asia, lower in US)",
+        "botComplexity": "Complex conversations may need AI integration (GPT-4)",
+        "noVoiceCalls": "Text/voice messages only, no live phone calls",
+        "spam": "Public bots can receive spam (mitigated with user ID verification)"
+      },
+      "requirements": [],
+      "tags": [
+        "telegram-bot",
+        "instant-messaging",
+        "quick-response",
+        "mobile-first",
+        "candidate-engagement",
+        "shift-matching",
+        "document-upload",
+        "interview-scheduling",
+        "chatbot",
+        "24-7-availability"
+      ],
+      "integrations": [
+        "Telegram Bot API",
+        "Google Sheets",
+        "Slack"
+      ],
+      "pricing": {
+        "telegramAPI": "Free (unlimited messages)",
+        "n8nWorkflow": "$0 (self-hosted) or included in n8n Cloud plan",
+        "googleSheets": "Free up to 1M rows",
+        "slackNotifications": "Free on Slack Free plan",
+        "estimatedMonthlyCost": "$0 for small-medium usage (<10k messages/month)"
+      },
+      "lastUpdated": "2025-11-23"
+    }
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ]
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Bot Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        400
+      ],
+      "webhookId": "telegram-bot"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "user-id",
+              "name": "telegram_user_id",
+              "value": "={{ $json.message ? $json.message.from.id : $json.callback_query.from.id }}",
+              "type": "number"
+            },
+            {
+              "id": "username",
+              "name": "telegram_username",
+              "value": "={{ $json.message ? $json.message.from.username : $json.callback_query.from.username }}",
+              "type": "string"
+            },
+            {
+              "id": "first-name",
+              "name": "first_name",
+              "value": "={{ $json.message ? $json.message.from.first_name : $json.callback_query.from.first_name }}",
+              "type": "string"
+            },
+            {
+              "id": "message-text",
+              "name": "message_text",
+              "value": "={{ $json.message ? $json.message.text : $json.callback_query.data }}",
+              "type": "string"
+            },
+            {
+              "id": "chat-id",
+              "name": "chat_id",
+              "value": "={{ $json.message ? $json.message.chat.id : $json.callback_query.message.chat.id }}",
+              "type": "number"
+            },
+            {
+              "id": "timestamp",
+              "name": "received_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "extract-telegram-data",
+      "name": "Extract Telegram Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        460,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Telegram_Messages",
+        "columns": {
+          "mappings": [
+            {
+              "column": "telegram_user_id",
+              "value": "={{ $json.telegram_user_id }}"
+            },
+            {
+              "column": "username",
+              "value": "={{ $json.telegram_username }}"
+            },
+            {
+              "column": "first_name",
+              "value": "={{ $json.first_name }}"
+            },
+            {
+              "column": "message_text",
+              "value": "={{ $json.message_text }}"
+            },
+            {
+              "column": "received_at",
+              "value": "={{ $json.received_at }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-message",
+      "name": "Log Message",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "id": "start-command",
+              "leftValue": "={{ $json.message_text }}",
+              "rightValue": "/start",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "route-commands",
+      "name": "Route Commands",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        900,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "👋 Welcome to Healthcare Staffing!\n\nI'm your quick response bot. Here's what I can help you with:\n\n**Quick Commands:**\n/shifts - View available shifts near you\n/apply - Apply to open positions\n/status - Check your application status\n/documents - Upload compliance documents\n/schedule - Schedule an interview\n/contact - Contact a recruiter\n/help - See all commands\n\n**Or just send me:**\n📍 Your location (city or zip code)\n💼 Your specialty (e.g., ICU, ER, Med-Surg)\n📅 Your availability (days/times)\n\nI'll respond instantly with relevant opportunities!\n\n**Need a human?**\nType 'recruiter' to connect with our team.",
+        "additionalFields": {
+          "replyMarkup": {
+            "inlineKeyboard": [
+              [
+                {
+                  "text": "🔍 View Shifts",
+                  "callbackData": "view_shifts"
+                },
+                {
+                  "text": "📝 Apply Now",
+                  "callbackData": "apply_now"
+                }
+              ],
+              [
+                {
+                  "text": "📄 Check Status",
+                  "callbackData": "check_status"
+                },
+                {
+                  "text": "📋 Upload Docs",
+                  "callbackData": "upload_docs"
+                }
+              ],
+              [
+                {
+                  "text": "🗓️ Schedule Interview",
+                  "callbackData": "schedule_interview"
+                },
+                {
+                  "text": "💬 Contact Recruiter",
+                  "callbackData": "contact_recruiter"
+                }
+              ]
+            ]
+          }
+        }
+      },
+      "id": "welcome-message",
+      "name": "Welcome Message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "🔍 **Available Shifts Near You**\n\nTo show you the best matches, I need a few details:\n\n1️⃣ **Your Location**\nPlease send your city or zip code\n\n2️⃣ **Your Specialty**\n- ICU/Critical Care\n- ER/Emergency\n- Med-Surg\n- Telemetry\n- Pediatrics\n- OR/Surgery\n- Other\n\n3️⃣ **Preferred Shift**\n- Day (7am-7pm)\n- Evening (3pm-11pm)\n- Night (7pm-7am)\n- PRN/Flexible\n\nJust reply with your answers, and I'll show you matching shifts instantly!\n\nExample: \"Los Angeles, ICU, Night shift\"",
+        "additionalFields": {}
+      },
+      "id": "shifts-message",
+      "name": "View Shifts Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "📝 **Quick Application**\n\nGreat! Let's get you started.\n\nPlease provide:\n\n1️⃣ **Full Name**\n2️⃣ **Email Address**\n3️⃣ **Phone Number**\n4️⃣ **Specialty/License Type** (RN, LPN, CNA)\n5️⃣ **Years of Experience**\n6️⃣ **Current Location** (City, State)\n\nYou can send all info in one message like this:\n\n\"John Smith\njohn@email.com\n555-123-4567\nRN - ICU\n5 years\nLos Angeles, CA\"\n\nOr I can guide you step-by-step. Which do you prefer?\n\n✅ Send all at once\n🔁 Step-by-step guide",
+        "additionalFields": {
+          "replyMarkup": {
+            "inlineKeyboard": [
+              [
+                {
+                  "text": "✅ Send All Info",
+                  "callbackData": "apply_all_info"
+                }
+              ],
+              [
+                {
+                  "text": "🔁 Step-by-Step",
+                  "callbackData": "apply_step_by_step"
+                }
+              ]
+            ]
+          }
+        }
+      },
+      "id": "apply-message",
+      "name": "Apply Now Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "📄 **Application Status Check**\n\nTo check your status, I need one of these:\n\n1️⃣ Your email address\n2️⃣ Your phone number\n3️⃣ Your application/candidate ID\n\nPlease reply with one of the above.",
+        "additionalFields": {}
+      },
+      "id": "status-message",
+      "name": "Check Status Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "📋 **Document Upload Portal**\n\nYou can upload your compliance documents here!\n\n**Required Documents:**\n✅ Nursing License\n✅ BLS Certification\n✅ COVID-19 Vaccination Card\n✅ TB Test Results\n✅ Physical Exam\n✅ Immunization Records\n\n**How to Upload:**\n\n**Option 1: Telegram (Fastest)**\nJust send photos or PDFs directly to this chat!\nLabel each document (e.g., \"BLS Certificate\")\n\n**Option 2: Web Portal**\nVisit: {{ $env.DOCUMENT_UPLOAD_URL }}\n\n**Option 3: Email**\nSend to: {{ $env.COMPLIANCE_EMAIL }}\n\nWhich method works best for you?",
+        "additionalFields": {
+          "replyMarkup": {
+            "inlineKeyboard": [
+              [
+                {
+                  "text": "📤 Upload via Telegram",
+                  "callbackData": "upload_telegram"
+                }
+              ],
+              [
+                {
+                  "text": "🌐 Use Web Portal",
+                  "url": "https://documents.example.com"
+                }
+              ],
+              [
+                {
+                  "text": "📧 Email Instead",
+                  "callbackData": "upload_email"
+                }
+              ]
+            ]
+          }
+        }
+      },
+      "id": "documents-message",
+      "name": "Upload Documents Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "🗓️ **Schedule Your Interview**\n\nLet's find a time that works for you!\n\n**Interview Options:**\n- 📞 Phone Interview (15-20 min)\n- 💻 Video Interview (30 min)\n- 🏢 In-Person Interview\n\nPlease select your preferred day and time:\n\n**This Week:**\nMonday-Friday: 9am-5pm\n\n**Next Week:**\nFlexible scheduling available\n\nOr click below to view our calendar and pick a slot:",
+        "additionalFields": {
+          "replyMarkup": {
+            "inlineKeyboard": [
+              [
+                {
+                  "text": "📅 View Calendar",
+                  "url": "https://calendly.com/healthcare-staffing"
+                }
+              ],
+              [
+                {
+                  "text": "Today",
+                  "callbackData": "interview_today"
+                },
+                {
+                  "text": "Tomorrow",
+                  "callbackData": "interview_tomorrow"
+                }
+              ],
+              [
+                {
+                  "text": "This Week",
+                  "callbackData": "interview_this_week"
+                },
+                {
+                  "text": "Next Week",
+                  "callbackData": "interview_next_week"
+                }
+              ]
+            ]
+          }
+        }
+      },
+      "id": "schedule-message",
+      "name": "Schedule Interview Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "💬 **Connect with a Recruiter**\n\nI'm connecting you with our recruiting team now!\n\n**Recruiter will contact you:**\n📞 Phone: {{ $env.RECRUITING_PHONE }}\n📧 Email: {{ $env.RECRUITING_EMAIL }}\n⏱️ Response Time: Within 30 minutes during business hours\n\n**Business Hours:**\nMon-Fri: 8am-6pm PST\nSat: 9am-2pm PST\nSun: Closed\n\n**Or continue chatting here!**\nYour message has been sent to the team. They'll respond via Telegram or call you directly.\n\n**What's your preferred contact method?**",
+        "additionalFields": {
+          "replyMarkup": {
+            "inlineKeyboard": [
+              [
+                {
+                  "text": "📞 Call Me",
+                  "callbackData": "contact_call"
+                },
+                {
+                  "text": "📧 Email Me",
+                  "callbackData": "contact_email"
+                }
+              ],
+              [
+                {
+                  "text": "💬 Continue Here",
+                  "callbackData": "contact_telegram"
+                }
+              ]
+            ]
+          }
+        }
+      },
+      "id": "contact-message",
+      "name": "Contact Recruiter Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "🤖 **Healthcare Staffing Bot - Help**\n\n**Available Commands:**\n\n/start - Welcome message & main menu\n/shifts - View available shifts\n/apply - Start application process\n/status - Check application status\n/documents - Upload compliance docs\n/schedule - Book interview\n/contact - Talk to a recruiter\n/help - Show this help message\n\n**Quick Actions:**\n\n📍 **Send your location** - Get nearby shifts\n💼 **Send your specialty** - Get matching positions\n📅 **Send your availability** - Get shift recommendations\n📱 **Send 'urgent'** - Priority support\n\n**Natural Language:**\nYou can also just chat naturally! Try:\n- \"Show me ICU shifts in LA\"\n- \"I need a night shift this weekend\"\n- \"What documents do I need?\"\n- \"When can I interview?\"\n\nI'm here 24/7 to help! 🚀",
+        "additionalFields": {}
+      },
+      "id": "help-message",
+      "name": "Help Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "🤔 I didn't quite understand that.\n\nTry:\n- Using a command like /shifts or /apply\n- Clicking a button from the menu\n- Or just describe what you need in plain English!\n\nType /help to see all available commands.",
+        "additionalFields": {}
+      },
+      "id": "default-response",
+      "name": "Default Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "={{ $env.SLACK_RECRUITING_CHANNEL }}",
+        "text": "💬 *New Telegram Message*\n\n*From:* {{ $json.first_name }} (@{{ $json.telegram_username }})\n*User ID:* {{ $json.telegram_user_id }}\n*Message:* {{ $json.message_text }}\n*Time:* {{ $json.received_at }}\n\n*Action:* {{ $json.message_text.includes('recruiter') || $json.message_text.includes('urgent') ? '🚨 *URGENT - Respond ASAP*' : 'Logged for review' }}",
+        "otherOptions": {}
+      },
+      "id": "notify-team",
+      "name": "Notify Team on Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [
+        1340,
+        400
+      ]
+    },
+    {
+      "id": "error-00002c29",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        400
+      ],
+      "parameters": {
+        "message": "Workflow execution error",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Bot Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Telegram Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Telegram Data": {
+      "main": [
+        [
+          {
+            "node": "Log Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Message": {
+      "main": [
+        [
+          {
+            "node": "Route Commands",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Commands": {
+      "main": [
+        [
+          {
+            "node": "Welcome Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "View Shifts Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Apply Now Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Status Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upload Documents Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Schedule Interview Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Contact Recruiter Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Help Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Default Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Welcome Message": {
+      "main": [
+        [
+          {
+            "node": "Notify Team on Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "View Shifts Response": {
+      "main": [
+        [
+          {
+            "node": "Notify Team on Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Now Response": {
+      "main": [
+        [
+          {
+            "node": "Notify Team on Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Status Response": {
+      "main": [
+        [
+          {
+            "node": "Notify Team on Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Documents Response": {
+      "main": [
+        [
+          {
+            "node": "Notify Team on Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Interview Response": {
+      "main": [
+        [
+          {
+            "node": "Notify Team on Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contact Recruiter Response": {
+      "main": [
+        [
+          {
+            "node": "Notify Team on Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Help Response": {
+      "main": [
+        [
+          {
+            "node": "Notify Team on Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Response": {
+      "main": [
+        [
+          {
+            "node": "Notify Team on Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "name": "Telegram Quick Response Bot",
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "telegram-bot",
+    "instant-messaging",
+    "quick-response",
+    "mobile-first",
+    "candidate-engagement",
+    "shift-matching",
+    "document-upload",
+    "interview-scheduling",
+    "chatbot",
+    "24-7-availability"
+  ],
+  "active": true,
+  "staticData": {},
+  "pinData": {},
+  "versionId": 1
+}

@@ -1,0 +1,573 @@
+{
+  "meta": {
+    "instanceId": "workflow-89914",
+    "versionId": "1.0.0",
+    "createdAt": "2025-11-23T04:34:11.512585",
+    "updatedAt": "2025-11-23T04:34:11.512586",
+    "owner": "Caphe Workflows",
+    "license": "MIT",
+    "category": "healthcare",
+    "subcategory": "Compliance",
+    "status": "active",
+    "priority": "medium",
+    "environment": "production",
+    "business_metadata": {
+      "useCase": "Streamline employee referral program for nursing recruitment. Automatically validates that referring employee is active and eligible for bonuses (90+ days employed), calculates specialty-based bonus tiers ($1,000-$2,000), sends confirmation emails to both referrer and candidate, and alerts HR team. Tracks referral lifecycle from submission through hiring and bonus payout.",
+      "difficulty": "intermediate",
+      "estimatedSetupTime": "40-50 minutes",
+      "features": [
+        "Automatic referral ID generation (REF-YYYYMMDD-XXXXXX)",
+        "Employee validation against active database",
+        "90-day employment eligibility check",
+        "3-tier bonus calculation by specialty",
+        "Duplicate referral prevention",
+        "Confirmation email to referring employee",
+        "Welcome email to referred candidate",
+        "Slack notification to HR team",
+        "Referral status tracking",
+        "Bonus payout schedule (50% at 90 days, 50% at 180 days)"
+      ],
+      "limitations": [
+        "Requires manual bonus payout tracking",
+        "No duplicate candidate checking",
+        "No automated payout processing",
+        "Bonus amounts are static (not configurable)",
+        "No referral limits per employee"
+      ],
+      "requirements": [
+        "Google Sheets with 'Employee_Referrals' and 'Employees' sheets",
+        "Webhook endpoint for referral submissions",
+        "Email accounts for HR and recruiting",
+        "Slack workspace with HR channel",
+        "Employee database with hire dates and status"
+      ],
+      "tags": [
+        "employee-referrals",
+        "referral-bonus",
+        "recruitment-automation",
+        "healthcare-staffing",
+        "bonus-calculation",
+        "employee-validation",
+        "referral-tracking"
+      ],
+      "integrations": [
+        "Webhook",
+        "Google Sheets",
+        "Email (SMTP)",
+        "Slack"
+      ],
+      "pricing": {
+        "n8n": "Free (self-hosted) or $20+/month (cloud)",
+        "googleSheets": "Free",
+        "email": "Free (Gmail) or $15/month (SendGrid)",
+        "slack": "Free tier available",
+        "referralBonuses": "$1,000-$2,000 per successful hire (paid by company)"
+      },
+      "lastUpdated": "2025-11-19"
+    }
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "employee-referral",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "referral-webhook",
+      "name": "Referral Submission Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        400
+      ],
+      "webhookId": "employee-referral"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "referral-id",
+              "name": "referral_id",
+              "value": "={{ 'REF-' + $now.toFormat('yyyyMMdd') + '-' + $now.toUnixInteger().toString().slice(-6) }}",
+              "type": "string"
+            },
+            {
+              "id": "submission-date",
+              "name": "submitted_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "status",
+              "name": "status",
+              "value": "pending_validation",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "generate-referral-id",
+      "name": "Generate Referral ID",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        460,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Employee_Referrals",
+        "columns": {
+          "mappings": [
+            {
+              "column": "referral_id",
+              "value": "={{ $json.referral_id }}"
+            },
+            {
+              "column": "referrer_employee_id",
+              "value": "={{ $json.referrer_employee_id }}"
+            },
+            {
+              "column": "referrer_name",
+              "value": "={{ $json.referrer_name }}"
+            },
+            {
+              "column": "referrer_email",
+              "value": "={{ $json.referrer_email }}"
+            },
+            {
+              "column": "candidate_name",
+              "value": "={{ $json.candidate_first_name + ' ' + $json.candidate_last_name }}"
+            },
+            {
+              "column": "candidate_email",
+              "value": "={{ $json.candidate_email }}"
+            },
+            {
+              "column": "candidate_phone",
+              "value": "={{ $json.candidate_phone }}"
+            },
+            {
+              "column": "candidate_specialty",
+              "value": "={{ $json.candidate_specialty }}"
+            },
+            {
+              "column": "relationship",
+              "value": "={{ $json.relationship }}"
+            },
+            {
+              "column": "submitted_at",
+              "value": "={{ $json.submitted_at }}"
+            },
+            {
+              "column": "status",
+              "value": "={{ $json.status }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-referral",
+      "name": "Log Referral Submission",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "sheetId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "range": "Employees!A:E",
+        "options": {}
+      },
+      "id": "get-employee-list",
+      "name": "Get Employee Database",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate that referrer is an active employee\nconst referrerEmployeeId = $input.first().json.referrer_employee_id;\nconst employees = $input.all().slice(1); // Skip first item (referral data)\n\nconst employee = employees.find(e => e.json.employee_id === referrerEmployeeId);\n\nlet validationStatus = 'invalid';\nlet validationMessage = '';\nlet referrerDepartment = '';\nlet referrerHireDate = '';\nlet eligibleForBonus = false;\n\nif (!employee) {\n  validationStatus = 'invalid';\n  validationMessage = 'Employee ID not found';\n} else if (employee.json.status !== 'Active') {\n  validationStatus = 'invalid';\n  validationMessage = 'Employee is not active';\n} else {\n  // Check if employee has been with company for at least 90 days\n  const hireDate = new Date(employee.json.hire_date);\n  const daysSinceHire = Math.floor((Date.now() - hireDate.getTime()) / (1000 * 60 * 60 * 24));\n  \n  validationStatus = 'valid';\n  referrerDepartment = employee.json.department;\n  referrerHireDate = employee.json.hire_date;\n  eligibleForBonus = daysSinceHire >= 90;\n  \n  if (eligibleForBonus) {\n    validationMessage = 'Employee validated and eligible for bonus';\n  } else {\n    validationMessage = `Employee validated but not eligible for bonus (${90 - daysSinceHire} days remaining)`;\n  }\n}\n\nconst referralData = $input.first().json;\n\nreturn {\n  ...referralData,\n  validation_status: validationStatus,\n  validation_message: validationMessage,\n  referrer_department: referrerDepartment,\n  referrer_hire_date: referrerHireDate,\n  bonus_eligible: eligibleForBonus,\n  validated_at: new Date().toISOString()\n};"
+      },
+      "id": "validate-referrer",
+      "name": "Validate Employee Referrer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "id": "is-valid",
+              "leftValue": "={{ $json.validation_status }}",
+              "rightValue": "valid",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-validation",
+      "name": "Check Validation Status",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "new-status",
+              "name": "status",
+              "value": "validated",
+              "type": "string"
+            },
+            {
+              "id": "bonus-tier",
+              "name": "bonus_tier",
+              "value": "={{ $json.candidate_specialty.includes('ICU') || $json.candidate_specialty.includes('ER') ? 'tier_1' : ($json.candidate_specialty.includes('Med-Surg') || $json.candidate_specialty.includes('Telemetry') ? 'tier_2' : 'tier_3') }}",
+              "type": "string"
+            },
+            {
+              "id": "bonus-amount",
+              "name": "potential_bonus",
+              "value": "={{ $json.candidate_specialty.includes('ICU') || $json.candidate_specialty.includes('ER') ? 2000 : ($json.candidate_specialty.includes('Med-Surg') || $json.candidate_specialty.includes('Telemetry') ? 1500 : 1000) }}",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "id": "calculate-bonus",
+      "name": "Calculate Bonus Tier",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "rejected-status",
+              "name": "status",
+              "value": "rejected",
+              "type": "string"
+            },
+            {
+              "id": "bonus-amount",
+              "name": "potential_bonus",
+              "value": "0",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "id": "mark-invalid",
+      "name": "Mark as Invalid",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        1560,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Employee_Referrals",
+        "dataMode": "autoMapInputData",
+        "options": {
+          "lookupColumn": "referral_id",
+          "lookupValue": "={{ $json.referral_id }}"
+        }
+      },
+      "id": "update-referral-status",
+      "name": "Update Referral Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.HR_EMAIL }}",
+        "toEmail": "={{ $json.referrer_email }}",
+        "subject": "✅ Referral Received: {{ $json.candidate_name }}",
+        "message": "Hi {{ $json.referrer_name }},\n\nThank you for referring {{ $json.candidate_name }} for a {{ $json.candidate_specialty }} position!\n\n**Referral Details:**\n- Referral ID: {{ $json.referral_id }}\n- Candidate: {{ $json.candidate_name }}\n- Specialty: {{ $json.candidate_specialty }}\n- Status: {{ $json.status }}\n\n**Bonus Information:**\n{{ $json.bonus_eligible ? '✅ You are eligible for a referral bonus!' : '⏳ You will be eligible for referral bonuses after 90 days of employment.' }}\n\n{{ $json.validation_status === 'valid' ? '💰 Potential Bonus: $' + $json.potential_bonus + ' (' + $json.bonus_tier + ')' : '❌ Referral could not be validated: ' + $json.validation_message }}\n\n**Bonus Payout Schedule:**\n- 50% paid after candidate completes 90 days\n- 50% paid after candidate completes 180 days\n\n**Next Steps:**\nOur recruiting team will reach out to {{ $json.candidate_name }} within 24-48 hours. We'll keep you updated on their progress!\n\n**Bonus Tiers:**\n- Tier 1 ($2,000): ICU, ER, Critical Care\n- Tier 2 ($1,500): Med-Surg, Telemetry, Step-Down\n- Tier 3 ($1,000): All other specialties\n\nThank you for helping us grow our team!\n\n---\nHR & Recruiting Team",
+        "options": {}
+      },
+      "id": "email-referrer",
+      "name": "Email Confirmation to Referrer",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.RECRUITING_EMAIL }}",
+        "toEmail": "={{ $json.candidate_email }}",
+        "subject": "You've Been Referred to Join Our Healthcare Team!",
+        "message": "Hi {{ $json.candidate_first_name }},\n\nGreat news! {{ $json.referrer_name }} has referred you for a {{ $json.candidate_specialty }} position with our healthcare organization.\n\n{{ $json.referrer_name }} believes you'd be a great fit for our team, and we'd love to learn more about you!\n\n**Why Join Us:**\n- Competitive compensation and benefits\n- Supportive work environment\n- Career development opportunities\n- Excellent nurse-to-patient ratios\n- Sign-on bonuses available\n\n**Next Steps:**\nOur recruiting team will reach out to you within 24-48 hours to:\n- Discuss open positions in {{ $json.candidate_specialty }}\n- Learn about your experience and career goals\n- Answer any questions you have\n\nIn the meantime, feel free to reach out if you have any questions!\n\nLooking forward to connecting,\n\n---\nRecruiting Team\n{{ $env.RECRUITING_EMAIL }}",
+        "options": {}
+      },
+      "id": "email-candidate",
+      "name": "Email Welcome to Candidate",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "={{ $env.SLACK_HR_CHANNEL }}",
+        "text": "🎯 *New Employee Referral*\n\n*Referral ID:* {{ $json.referral_id }}\n*Referred by:* {{ $json.referrer_name }} ({{ $json.referrer_employee_id }})\n*Department:* {{ $json.referrer_department }}\n\n*Candidate:* {{ $json.candidate_name }}\n*Specialty:* {{ $json.candidate_specialty }}\n*Phone:* {{ $json.candidate_phone }}\n*Email:* {{ $json.candidate_email }}\n*Relationship:* {{ $json.relationship }}\n\n*Status:* {{ $json.status }}\n{{ $json.validation_status === 'valid' ? '💰 *Bonus Eligible:* ' + ($json.bonus_eligible ? 'Yes - $' + $json.potential_bonus : 'Not yet (< 90 days employed)') : '❌ *Invalid:* ' + $json.validation_message }}\n\n*Action Required:* Contact candidate within 24-48 hours",
+        "otherOptions": {}
+      },
+      "id": "notify-hr-slack",
+      "name": "Notify HR Team (Slack)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"referral_id\": $json.referral_id, \"status\": $json.status, \"validation_status\": $json.validation_status, \"bonus_eligible\": $json.bonus_eligible, \"potential_bonus\": $json.potential_bonus, \"message\": \"Referral submitted successfully\" } }}",
+        "options": {}
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2220,
+        400
+      ]
+    },
+    {
+      "id": "error-0000fbf6",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        400
+      ],
+      "parameters": {
+        "message": "Workflow execution error",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Referral Submission Webhook": {
+      "main": [
+        [
+          {
+            "node": "Generate Referral ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Referral ID": {
+      "main": [
+        [
+          {
+            "node": "Log Referral Submission",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Referral Submission": {
+      "main": [
+        [
+          {
+            "node": "Get Employee Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Employee Database": {
+      "main": [
+        [
+          {
+            "node": "Validate Employee Referrer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Employee Referrer": {
+      "main": [
+        [
+          {
+            "node": "Check Validation Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Validation Status": {
+      "main": [
+        [
+          {
+            "node": "Calculate Bonus Tier",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark as Invalid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Bonus Tier": {
+      "main": [
+        [
+          {
+            "node": "Update Referral Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark as Invalid": {
+      "main": [
+        [
+          {
+            "node": "Update Referral Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Referral Status": {
+      "main": [
+        [
+          {
+            "node": "Email Confirmation to Referrer",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email Welcome to Candidate",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify HR Team (Slack)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Confirmation to Referrer": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Welcome to Candidate": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify HR Team (Slack)": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "name": "Healthcare Staffing - Employee Referral Program",
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "employee-referrals",
+    "referral-bonus",
+    "recruitment-automation",
+    "healthcare-staffing",
+    "bonus-calculation",
+    "employee-validation",
+    "referral-tracking"
+  ],
+  "active": true,
+  "staticData": {},
+  "pinData": {},
+  "versionId": 1
+}

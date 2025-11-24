@@ -1,0 +1,364 @@
+{
+  "meta": {
+    "instanceId": "workflow-77222",
+    "versionId": "1.0.0",
+    "createdAt": "2025-11-23T04:34:11.508026",
+    "updatedAt": "2025-11-23T04:34:11.508028",
+    "owner": "Caphe Workflows",
+    "license": "MIT",
+    "category": "healthcare",
+    "subcategory": "Appointments",
+    "status": "active",
+    "priority": "low",
+    "environment": "production",
+    "business_metadata": {
+      "useCase": "Healthcare staffing agencies need to capture RN and CNA job applications from their website forms and immediately notify recruiters. This workflow automates the entire lead capture process - from form submission to database storage to multi-channel notifications.",
+      "difficulty": "beginner",
+      "estimatedSetupTime": "20-30 minutes",
+      "features": [
+        "Webhook endpoint for form submissions",
+        "Automatic data extraction from POST body",
+        "Real-time Google Sheets database storage",
+        "HTML-formatted email notifications to recruiters",
+        "Slack channel notifications with candidate details",
+        "Immediate webhook response to applicant",
+        "Timestamp tracking for all applications",
+        "Automatic status assignment (New Lead)"
+      ],
+      "limitations": [
+        "Requires Google Sheets for data storage (not CRM-integrated)",
+        "No automatic email confirmation to applicant",
+        "No duplicate detection (same applicant can submit multiple times)",
+        "No file upload handling (resume attachments)"
+      ],
+      "requirements": {
+        "credentials": [
+          "Google Sheets OAuth2 (read/write access)",
+          "SMTP Email Account (for recruiter notifications)",
+          "Slack API Token (for channel notifications)"
+        ],
+        "external": [
+          "Google Sheet with 'Candidates' tab and columns: Name, Email, Phone, Position, License Number, License State, Years Experience, Specialty, Preferred Location, Shift Preference, Application Date, Status",
+          "Slack channel for recruitment notifications",
+          "Web form that POSTs to n8n webhook URL"
+        ],
+        "environment": [
+          "GOOGLE_SHEET_ID - Your Google Sheet ID",
+          "RECRUITER_EMAIL - Recruiter's email address",
+          "SLACK_CHANNEL - Slack channel ID (e.g., #recruiters)",
+          "SHEET_URL - Direct URL to your Google Sheet"
+        ]
+      },
+      "tags": [
+        "healthcare",
+        "staffing",
+        "lead-generation",
+        "RN",
+        "CNA",
+        "recruitment",
+        "form-automation",
+        "webhooks",
+        "notifications"
+      ],
+      "integrations": [
+        "Webhook",
+        "Google Sheets",
+        "Email (SMTP)",
+        "Slack"
+      ],
+      "pricing": {
+        "n8n": "Free tier: 20 executions/day, Paid: $20/month unlimited",
+        "googleSheets": "Free with Google account",
+        "slack": "Free tier available",
+        "smtp": "Varies by provider (Gmail free for basic use)"
+      },
+      "lastUpdated": "2025-11-19"
+    }
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "rn-cna-application",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook - Job Application Form",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "rn-cna-application-form"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "applicant_name",
+              "value": "={{ $json.body.full_name }}"
+            },
+            {
+              "name": "email",
+              "value": "={{ $json.body.email }}"
+            },
+            {
+              "name": "phone",
+              "value": "={{ $json.body.phone }}"
+            },
+            {
+              "name": "position",
+              "value": "={{ $json.body.position }}"
+            },
+            {
+              "name": "license_number",
+              "value": "={{ $json.body.license_number }}"
+            },
+            {
+              "name": "license_state",
+              "value": "={{ $json.body.license_state }}"
+            },
+            {
+              "name": "years_experience",
+              "value": "={{ $json.body.years_experience }}"
+            },
+            {
+              "name": "specialty",
+              "value": "={{ $json.body.specialty }}"
+            },
+            {
+              "name": "preferred_location",
+              "value": "={{ $json.body.preferred_location }}"
+            },
+            {
+              "name": "shift_preference",
+              "value": "={{ $json.body.shift_preference }}"
+            },
+            {
+              "name": "application_date",
+              "value": "={{ $now.toISO() }}"
+            },
+            {
+              "name": "status",
+              "value": "New Lead"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-data",
+      "name": "Extract Application Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "sheetId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "range": "Candidates!A:L",
+        "options": {
+          "valueInputMode": "USER_ENTERED"
+        }
+      },
+      "id": "save-to-sheet",
+      "name": "Save to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        650,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-oauth",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "notification-message",
+              "name": "notification_message",
+              "value": "=🏥 New {{ $('Extract Application Data').item.json.position }} Application\\n\\n👤 Name: {{ $('Extract Application Data').item.json.applicant_name }}\\n📧 Email: {{ $('Extract Application Data').item.json.email }}\\n📱 Phone: {{ $('Extract Application Data').item.json.phone }}\\n🏥 Specialty: {{ $('Extract Application Data').item.json.specialty }}\\n📍 Location: {{ $('Extract Application Data').item.json.preferred_location }}\\n⏰ Shift: {{ $('Extract Application Data').item.json.shift_preference }}\\n📅 Experience: {{ $('Extract Application Data').item.json.years_experience }} years\\n🆔 License: {{ $('Extract Application Data').item.json.license_number }} ({{ $('Extract Application Data').item.json.license_state }})",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "format-notification",
+      "name": "Format Notification",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        650,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.RECRUITER_EMAIL }}",
+        "toEmail": "={{ $env.RECRUITER_EMAIL }}",
+        "subject": "=🏥 New {{ $('Extract Application Data').item.json.position }} Application - {{ $('Extract Application Data').item.json.applicant_name }}",
+        "emailType": "html",
+        "message": "=<html>\\n<head>\\n  <style>\\n    body { font-family: Arial, sans-serif; line-height: 1.6; }\\n    .container { max-width: 600px; margin: 0 auto; padding: 20px; }\\n    .header { background: #2563eb; color: white; padding: 20px; border-radius: 8px 8px 0 0; }\\n    .content { background: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; }\\n    .field { margin: 10px 0; }\\n    .label { font-weight: bold; color: #374151; }\\n    .value { color: #1f2937; }\\n    .footer { background: #f3f4f6; padding: 15px; text-align: center; border-radius: 0 0 8px 8px; }\\n    .action-btn { background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 10px 0; }\\n  </style>\\n</head>\\n<body>\\n  <div class='container'>\\n    <div class='header'>\\n      <h2>🏥 New Healthcare Application</h2>\\n    </div>\\n    <div class='content'>\\n      <div class='field'>\\n        <span class='label'>Position:</span>\\n        <span class='value'>{{ $('Extract Application Data').item.json.position }}</span>\\n      </div>\\n      <div class='field'>\\n        <span class='label'>👤 Name:</span>\\n        <span class='value'>{{ $('Extract Application Data').item.json.applicant_name }}</span>\\n      </div>\\n      <div class='field'>\\n        <span class='label'>📧 Email:</span>\\n        <span class='value'>{{ $('Extract Application Data').item.json.email }}</span>\\n      </div>\\n      <div class='field'>\\n        <span class='label'>📱 Phone:</span>\\n        <span class='value'>{{ $('Extract Application Data').item.json.phone }}</span>\\n      </div>\\n      <div class='field'>\\n        <span class='label'>🏥 Specialty:</span>\\n        <span class='value'>{{ $('Extract Application Data').item.json.specialty }}</span>\\n      </div>\\n      <div class='field'>\\n        <span class='label'>📍 Preferred Location:</span>\\n        <span class='value'>{{ $('Extract Application Data').item.json.preferred_location }}</span>\\n      </div>\\n      <div class='field'>\\n        <span class='label'>⏰ Shift Preference:</span>\\n        <span class='value'>{{ $('Extract Application Data').item.json.shift_preference }}</span>\\n      </div>\\n      <div class='field'>\\n        <span class='label'>📅 Years Experience:</span>\\n        <span class='value'>{{ $('Extract Application Data').item.json.years_experience }}</span>\\n      </div>\\n      <div class='field'>\\n        <span class='label'>🆔 License:</span>\\n        <span class='value'>{{ $('Extract Application Data').item.json.license_number }} ({{ $('Extract Application Data').item.json.license_state }})</span>\\n      </div>\\n      <div class='field'>\\n        <span class='label'>📆 Applied:</span>\\n        <span class='value'>{{ $('Extract Application Data').item.json.application_date }}</span>\\n      </div>\\n      <a href='{{ $env.SHEET_URL }}' class='action-btn'>View in Spreadsheet</a>\\n    </div>\\n    <div class='footer'>\\n      <p>This application was automatically captured via n8n workflow</p>\\n    </div>\\n  </div>\\n</body>\\n</html>",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Email Recruiter",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        850,
+        100
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "SMTP Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "={{ $env.SLACK_CHANNEL }}",
+        "text": "={{ $('Format Notification').item.json.notification_message }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "id": "send-slack",
+      "name": "Notify Slack Channel",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [
+        850,
+        300
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credentials",
+          "name": "Slack Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"Application received successfully! We will contact you within 24-48 hours.\", \"application_id\": $('Save to Google Sheets').item.json.spreadsheetId } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        850,
+        500
+      ]
+    },
+    {
+      "id": "error-00014eee",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        400
+      ],
+      "parameters": {
+        "message": "Workflow execution error",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook - Job Application Form": {
+      "main": [
+        [
+          {
+            "node": "Extract Application Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Application Data": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Format Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Notify Slack Channel",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Notification": {
+      "main": [
+        [
+          {
+            "node": "Email Recruiter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "name": "RN/CNA Job Application Lead Capture",
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    "healthcare",
+    "staffing",
+    "lead-generation",
+    "RN",
+    "CNA",
+    "recruitment",
+    "form-automation",
+    "webhooks",
+    "notifications"
+  ],
+  "active": true,
+  "staticData": null,
+  "pinData": {},
+  "versionId": 1
+}
