@@ -112,8 +112,7 @@ trivy-results.sarif
 .gitlab-ci.yml
 azure-pipelines.yml
 
-# Docker files (if building from within container)
-Dockerfile*
+# Docker compose files (keep Dockerfile for Railway)
 docker-compose*.yml
 
 # Node (if any)
