@@ -1,0 +1,32 @@
+# Ignore all n8n source code and conflicting files
+.devcontainer/
+.github/
+docker/
+docs/
+packages/
+scripts/
+
+# Ignore other unnecessary files
+.dockerignore
+.editorconfig
+.eslintignore
+.eslintrc.js
+.gitattributes
+.gitignore
+.husky/
+.lerna.json
+.nvmrc
+.prettierignore
+.prettierrc.js
+.renovaterc.json
+.stylelintrc.js
+.yarn/
+.yarnrc.yml
+babel.config.js
+jest.config.js
+lerna.json
+package.json
+README.md
+tsconfig.json
+typedoc.js
+yarn.lock
